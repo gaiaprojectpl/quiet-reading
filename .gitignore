@@ -1,0 +1,35 @@
+# Secrets – never commit
+Secrets.env
+*.xcconfig.local
+local.properties
+google-services.json
+GoogleService-Info.plist
+
+# macOS
+.DS_Store
+
+# Xcode
+xcuserdata/
+DerivedData/
+*.xcuserstate
+build/
+*.ipa
+*.dSYM.zip
+
+# Android / Gradle
+.gradle/
+android/build/
+android/app/build/
+android/**/build/
+.idea/
+*.iml
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+*.keystore
+*.jks
+
+# Python
+__pycache__/

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Launch background only. In-app colours come from designsystem/Tokens.generated.kt -->
+    <color name="qs_bg">#FFFBF5EF</color>
+</resources>
