@@ -29,6 +29,9 @@ struct RootView: View {
             }
         }
         .environment(importSession)
+        #if DEBUG
+        .modifier(DuoProbe())
+        #endif
         .tint(resolvedTheme.palette.accentInk)
         .environment(\.theme, resolvedTheme)
     }
