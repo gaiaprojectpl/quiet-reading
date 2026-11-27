@@ -4,17 +4,27 @@ How to turn a Figma node into native code in this repo. Read with `CLAUDE.md` (p
 
 Figma files: **playground** `Tq6PW3rvfMxncJfpmyjKoz` (default for MCP) and **quiet-reading** `F2BQfzE22CMwMkI4gZXZNe` (private master, MCP rate-limited). They're copies with the same node IDs. Use the one Kaja links, otherwise playground (see CLAUDE.md). Components and variables are on the page 🧱 Components (`46:8`); mockups are on 🎇 Mockups (`1:301`).
 
-Where things are on 🎇 Mockups (all in Peach & Sage, inside `32:27 Flows`; each flow has an iOS row and an Android row):
+Where things are on 🎇 Mockups (all in Peach & Sage, inside `32:27 Flows`). Each flow is split into an iOS frame and an Android frame. Open the iOS frame when building iOS (checked 27 Nov 2026):
 
-| Flow | Node | Flow | Node |
-|---|---|---|---|
-| 0 Onboarding & account | `74:8885` | 7 Library & book details | `37:2` |
-| 1 First launch & import | `32:29` | 8 Stats & year in books | `37:3` |
-| 2 Add a book by photo | `32:30` | 8b Charts & gamification | `52:2688` |
-| 3 Update progress & finish | `32:31` | 9 Add a quote | `55:5501` |
-| 4 Settings & profile | `32:32` | 5 Plus themes & payment | `32:33` |
-| 6 iPhone Duo & foldables | `32:34` | 6b Duo: every screen adapts | `75:10086` |
-| Widget ideas | `32:35` | 10 Empty, loading & offline | `91:13172` |
+| Flow | iOS | Android |
+|---|---|---|
+| 0 Onboarding & account | `109:14162` | `109:14163` |
+| 1 First launch & import | `109:14168` | `109:14169` |
+| 2 Add a book by photo | `109:14174` | `109:14175` |
+| 3 Update progress & finish | `109:14180` | `109:14181` |
+| 4 Settings & profile | `109:14186` | `109:14187` |
+| 5 Plus themes & payment | `109:14216` | `109:14217` |
+| 6 iPhone Duo & foldables | `109:14222` | `109:14223` |
+| 6b Duo: every screen adapts | `109:14228` | `109:14229` |
+| 7 Library & book details | `109:14192` | `109:14193` |
+| 8 Stats & year in books | `109:14198` | `109:14199` |
+| 8b Charts & gamification | `109:14204` | `109:14205` |
+| 9 Add a quote | `109:14210` | `109:14211` |
+| 10 Empty, loading & offline | `109:14241` | `109:14242` |
+| 11 Splash animation | `153:14821` | `153:15017` |
+| Widget ideas | `109:14235` | `109:14236` |
+
+If a node isn't found, Kaja has probably moved it: run `get_metadata` on `32:27` (not on the whole page) to find the new ID, then update this table.
 
 Theme previews (F/C/D/E): `57:5791`. **Ignore the "Earlier static screens" frames (`28:2`–`31:2`)**: they are marked outdated. The page is very large, so don't run `get_metadata` on `1:301`. Go straight to a flow node.
 
