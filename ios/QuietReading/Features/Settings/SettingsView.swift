@@ -45,7 +45,13 @@ struct SettingsView: View {
             }
             .scrollContentBackground(.hidden)
             .background(theme.palette.bg.ignoresSafeArea())
-            .navigationTitle("Settings")
+            .safeAreaInset(edge: .top) {
+                ScreenTitle(title: "Settings")
+                    .padding(.horizontal, Space.s20)
+                    .padding(.top, Space.s16)
+                    .background(theme.palette.bg)
+            }
+            .toolbar(.hidden, for: .navigationBar)
         }
     }
 }

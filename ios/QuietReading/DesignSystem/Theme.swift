@@ -17,8 +17,8 @@ extension EnvironmentValues {
 }
 
 extension ThemeID {
-    /// Serif heading font of the theme. Scales with Dynamic Type.
-    /// Falls back to the system font until the font files are bundled.
+    /// Serif heading font of the theme (bundled in Resources/Fonts, registered by `QsFonts`).
+    /// Scales with Dynamic Type.
     func headline(_ size: CGFloat, relativeTo style: Font.TextStyle = .title) -> Font {
         .custom(headFont.family, size: size, relativeTo: style).weight(headFont.weight)
     }

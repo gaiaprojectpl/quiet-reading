@@ -4,7 +4,7 @@ struct AddBookView: View {
     var body: some View {
         ScreenScaffold(title: "Add a book") {
             EmptyStateView(
-                systemImage: "camera",
+                icon: "qs.camera",
                 title: "Three ways to add",
                 message: "Photograph the cover, scan the barcode or search by title."
             )

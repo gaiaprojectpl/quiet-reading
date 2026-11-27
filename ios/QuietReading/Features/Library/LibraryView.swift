@@ -4,7 +4,7 @@ struct LibraryView: View {
     var body: some View {
         ScreenScaffold(title: "Library") {
             EmptyStateView(
-                systemImage: "books.vertical",
+                icon: "qs.library",
                 title: "Your library starts here",
                 message: "Add books by photo, title or barcode, or bring them over from Goodreads."
             )

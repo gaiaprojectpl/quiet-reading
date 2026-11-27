@@ -1,30 +1,47 @@
 import SwiftUI
 
-/// Buttons from 🧱 Components › Button (Primary, Secondary, Outline, Text). Full width, 48 pt.
+/// 🧱 Components › Button (Figma 47:165). Full width.
+/// - Primary: filled accent, one per screen.
+/// - Secondary: accent border, no fill – the second most likely action.
+/// - Outline: neutral border – low emphasis.
+/// - Text: link style.
+/// - Danger: destructive.
+/// Large = 48 pt, Small = 40 pt (hit area stays ≥ 44 pt).
 struct QsButtonStyle: ButtonStyle {
-    enum Kind { case primary, secondary, outline, text }
+    enum Kind { case primary, secondary, outline, text, danger }
+    enum ButtonSize { case large, small }
     var kind: Kind = .primary
+    var size: ButtonSize = .large
 
     func makeBody(configuration: Configuration) -> some View {
-        QsButtonBody(configuration: configuration, kind: kind)
+        QsButtonBody(configuration: configuration, kind: kind, size: size)
     }
 }
 
 private struct QsButtonBody: View {
     let configuration: ButtonStyleConfiguration
     let kind: QsButtonStyle.Kind
+    let size: QsButtonStyle.ButtonSize
     @Environment(\.theme) private var theme
     @Environment(\.isEnabled) private var isEnabled
 
     private var colors: (fg: Color, bg: Color, border: Color) {
         let p = theme.palette
-        guard isEnabled else { return (p.disabledInk, p.disabledBg, .clear) }
         let pressed = configuration.isPressed
+        guard isEnabled else {
+            switch kind {
+            case .primary, .danger: return (p.disabledInk, p.disabledBg, .clear)
+            case .secondary: return (p.disabledInk, .clear, p.disabledInk)
+            case .outline: return (p.disabledInk, p.disabledBg, p.disabledInk)
+            case .text: return (p.disabledInk, .clear, .clear)
+            }
+        }
         switch kind {
         case .primary: return (p.onAccent, pressed ? p.accentPressed : p.accent, .clear)
-        case .secondary: return (p.accentInk, pressed ? p.soft : p.soft2, .clear)
-        case .outline: return (p.accentInk, pressed ? p.soft2 : .clear, p.lineStrong)
+        case .secondary: return (p.accentInk, pressed ? p.soft2 : .clear, pressed ? p.accentPressed : p.accent)
+        case .outline: return (p.ink, pressed ? p.infoSoft : .clear, p.lineStrong)
         case .text: return (p.accentInk, pressed ? p.soft2 : .clear, .clear)
+        case .danger: return (p.onAccent, p.error, .clear)
         }
     }
 
@@ -32,13 +49,14 @@ private struct QsButtonBody: View {
         let c = colors
         let shape = RoundedRectangle(cornerRadius: theme.radii.btn, style: .continuous)
         configuration.label
-            .font(.body.weight(.semibold))
+            .font((size == .large ? Font.body : .subheadline).weight(.semibold))
             .multilineTextAlignment(.center)
             .foregroundStyle(c.fg)
-            .padding(.horizontal, Space.s16)
-            .frame(maxWidth: .infinity, minHeight: Size.button)
+            .padding(.horizontal, size == .large ? Space.s24 : Space.s16)
+            .frame(maxWidth: .infinity, minHeight: size == .large ? Size.button : Size.buttonSmall)
             .background(c.bg, in: shape)
             .overlay(shape.strokeBorder(c.border, lineWidth: Size.stroke))
             .contentShape(shape)
+            .frame(minHeight: Size.touchIos)
     }
 }
