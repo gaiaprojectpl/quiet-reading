@@ -142,15 +142,16 @@ struct ProfileEditView: View {
     }
 }
 
-/// System camera for a quick profile photo.
-private struct CameraCapture: UIViewControllerRepresentable {
+/// System camera for a quick photo (front for the profile, back for a book cover).
+struct CameraCapture: UIViewControllerRepresentable {
+    var front = true
     let onPhoto: (UIImage) -> Void
     @Environment(\.dismiss) private var dismiss
 
     func makeUIViewController(context: Context) -> UIImagePickerController {
         let picker = UIImagePickerController()
         picker.sourceType = .camera
-        picker.cameraDevice = .front
+        picker.cameraDevice = front ? .front : .rear
         picker.delegate = context.coordinator
         return picker
     }

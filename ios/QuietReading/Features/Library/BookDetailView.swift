@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import PhotosUI
 
 /// Flow 7 › Step 2 · Book details: header with the shelf chip, progress, notes, Started / Moods / Source.
 struct BookDetailView: View {
@@ -25,6 +26,11 @@ struct BookDetailView: View {
     @State private var addingQuote = false
     @State private var quoteSource: QuoteSource?
     @State private var pendingQuoteSource: QuoteSource?
+    @State private var coverMenu = false
+    @State private var takingCover = false
+    @State private var pickingCover = false
+    @State private var pickedCover: PhotosPickerItem?
+    @State private var savingCover = false
 
     enum DetailTab: Hashable { case progress, quotes, notes }
 
@@ -97,6 +103,24 @@ struct BookDetailView: View {
             AddQuoteSheet(onChoose: { pendingQuoteSource = $0 })
         }
         .fullScreenCover(item: $quoteSource) { QuoteFlow(book: book, source: $0) }
+        // Cover photo: take one of the book in your hands, or pick one from Photos.
+        .confirmationDialog(book.coverData == nil ? "Add a cover" : "Change the cover", isPresented: $coverMenu, titleVisibility: .visible) {
+            if UIImagePickerController.isSourceTypeAvailable(.camera) { Button("Take a photo") { takingCover = true } }
+            Button("Choose from Photos") { pickingCover = true }
+        } message: {
+            Text("Hold the book flat and fill the frame. The cover is trimmed for you.")
+        }
+        .fullScreenCover(isPresented: $takingCover) {
+            CameraCapture(front: false) { image in setCover(image) }.ignoresSafeArea()
+        }
+        .photosPicker(isPresented: $pickingCover, selection: $pickedCover, matching: .images)
+        .onChange(of: pickedCover) { _, item in
+            guard let item else { return }
+            Task {
+                if let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) { setCover(image) }
+                pickedCover = nil
+            }
+        }
         #if DEBUG
         .task {
             switch UserDefaults.standard.string(forKey: "qsLibrary") {
@@ -145,9 +169,32 @@ struct BookDetailView: View {
             .contentShape(Rectangle())
     }
 
+    /// Saves the reader's own cover photo (trimmed to the book). Saving is silent.
+    private func setCover(_ image: UIImage) {
+        savingCover = true
+        Task {
+            let cover = await CoverCropper.crop(image)
+            book.coverData = cover.coverJPEG()
+            savingCover = false
+        }
+    }
+
     private var header: some View {
         HStack(alignment: .top, spacing: Space.s16) {
-            BookCover(source: .data(book.coverData), title: book.title, width: 112)
+            VStack(spacing: Space.s4) {
+                Button { coverMenu = true } label: {
+                    BookCover(source: .data(book.coverData), title: book.title, width: 112)
+                        .overlay { if savingCover { ProgressView().tint(theme.palette.ink) } }
+                }
+                .buttonStyle(QsPressStyle())
+                .accessibilityLabel(book.coverData == nil ? "Add a cover photo" : "Change the cover")
+                Button(book.coverData == nil ? "Add cover" : "Change cover") { coverMenu = true }
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(theme.palette.accentInk)
+                    .frame(minHeight: Size.touchIos)
+                    .accessibilityHidden(true)   // same action as the cover above
+            }
+            .gentleAnimation(book.coverData)
             VStack(alignment: .leading, spacing: Space.s8) {
                 Text(book.title)
                     .font(theme.headline(24, relativeTo: .title2))

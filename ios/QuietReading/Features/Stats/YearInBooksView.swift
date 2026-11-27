@@ -8,7 +8,7 @@ struct YearInBooksView: View {
     @Environment(\.theme) private var theme
     @Environment(\.displayScale) private var displayScale
     @AppStorage(ProfileKeys.name) private var name = ""
-    @State private var shareImage: Image?
+    @State private var shareImage: SharedImage?
 
     private var books: [Book] { stats.finished(in: year) }
 
@@ -59,7 +59,7 @@ struct YearInBooksView: View {
         .safeAreaInset(edge: .bottom, spacing: 0) {
             Group {
                 if let shareImage, !books.isEmpty {
-                    ShareLink(item: shareImage, preview: SharePreview(String(localized: "My \(String(year)) in books"), image: shareImage)) {
+                    ShareLink(item: shareImage.url, preview: SharePreview(String(localized: "My \(String(year)) in books"), image: shareImage.preview)) {
                         HStack(spacing: Space.s8) {
                             Image("qs.share").resizable().frame(width: Size.iconM, height: Size.iconM).accessibilityHidden(true)
                             Text("Share")
@@ -86,7 +86,7 @@ struct YearInBooksView: View {
 
     /// Draws the share card once (covers + "Ola read 18 books in 2026").
     private func render() {
-        shareImage = StatsShareCard.image(
+        shareImage = StatsShareCard.file(
             books: Array(books.suffix(3)),
             title: name.isEmpty ? String(localized: "I read \(books.count) books in \(String(year))")
                                 : String(localized: "\(name) read \(books.count) books in \(String(year))"),

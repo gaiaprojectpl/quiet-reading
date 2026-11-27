@@ -25,7 +25,7 @@ struct StatsView: View {
     @State private var updating: Book?
     @State private var finishAfterSheet: Book?
     @State private var finishing: Book?
-    @State private var shareImage: Image?
+    @State private var shareImage: SharedImage?
     @AppStorage(ProfileKeys.name) private var name = ""
     @Environment(\.displayScale) private var displayScale
 
@@ -196,7 +196,7 @@ struct StatsView: View {
             books = Array(s.finished(in: year).suffix(3))
             detail = String(localized: "\(s.pages(in: year).formatted()) pages · \(s.newAuthors(in: year)) new authors")
         }
-        shareImage = StatsShareCard.image(books: books, title: shareTitle, detail: detail, theme: theme, scale: displayScale)
+        shareImage = StatsShareCard.file(books: books, title: shareTitle, detail: detail, theme: theme, scale: displayScale)
     }
 
     // MARK: Empty (Flow 8 › No data yet)

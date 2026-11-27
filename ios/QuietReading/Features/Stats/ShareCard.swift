@@ -36,24 +36,34 @@ struct StatsShareCard: View {
         .background(theme.palette.soft)
     }
 
-    /// Renders the card to an image at the screen's scale.
+    /// Renders the card to a PNG file, the format every sharing app accepts (Messages, Instagram, WhatsApp, Photos…).
     @MainActor
-    static func image(books: [Book], title: String, detail: String?, theme: ThemeID, scale: CGFloat) -> Image? {
+    static func file(books: [Book], title: String, detail: String?, theme: ThemeID, scale: CGFloat) -> SharedImage? {
         let renderer = ImageRenderer(content: StatsShareCard(books: books, title: title, detail: detail).environment(\.theme, theme))
         renderer.scale = scale
-        return renderer.uiImage.map(Image.init(uiImage:))
+        guard let ui = renderer.uiImage, let png = ui.pngData() else { return nil }
+        let url = URL.temporaryDirectory.appending(path: "My reading – Quiet Reading.png")
+        do { try png.write(to: url, options: .atomic) } catch { return nil }
+        return SharedImage(url: url, preview: Image(uiImage: ui))
     }
+}
+
+/// A rendered share card: the PNG file to send and a preview for the share sheet.
+struct SharedImage: Equatable {
+    let url: URL
+    let preview: Image
+    static func == (a: SharedImage, b: SharedImage) -> Bool { a.url == b.url && a.preview == b.preview }
 }
 
 /// Share button that opens the iPhone share sheet straight away (Messages, Instagram, WhatsApp…).
 struct ShareImageButton: View {
-    let image: Image?
+    let image: SharedImage?
     let caption: String
     @Environment(\.theme) private var theme
 
     var body: some View {
         if let image {
-            ShareLink(item: image, message: Text(caption), preview: SharePreview(caption, image: image)) {
+            ShareLink(item: image.url, message: Text(caption), preview: SharePreview(caption, image: image.preview)) {
                 Image("qs.share").resizable().frame(width: Size.iconL, height: Size.iconL)
                     .foregroundStyle(theme.palette.ink)
                     .frame(width: Size.touchIos, height: Size.touchIos)
