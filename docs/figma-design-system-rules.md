@@ -103,9 +103,10 @@ On iOS, always use `RoundedRectangle(cornerRadius:style: .continuous)`, which ma
 | Button: Primary / Secondary (accent border, no fill) / Outline (neutral border) / Text / Danger · Large 48 / Small 40 | `Button("…"){}.buttonStyle(QsButtonStyle(kind: .secondary, size: .small))` – `DesignSystem/Components/QsButtonStyle.swift` | `QsButton("…", onClick, kind = QsButtonKind.Primary)` – `designsystem/components/QsButton.kt` |
 | Empty state | `EmptyStateView(systemImage:title:message:)` | `EmptyState(icon, title, message)` |
 | Screen shell (bg, margins, serif large title) | `ScreenScaffold(title:) { … }` (20 pt sides; system nav bar hidden, title is `ScreenTitle`) | `Screen(title) { … }` (16 dp sides) |
-| Nav bar: Home · Library · Add · Stats · Settings | `QsTabBar` (custom, matches Figma: soft pill, Add = accent circle) used in `App/RootView.swift` | `MainActivity.kt` (`NavigationBar`) |
+| Nav bar: Home · Library · Add · Stats · Settings | `QsTabBar` (custom, matches Figma: soft/soft2/tintStrong pills, Add = accent circle that opens the Add **sheet**, never a tab) used in `App/RootView.swift` | `MainActivity.kt` (`NavigationBar`) |
 | Book cover (2:3, cover radius, shadow, placeholder) | `BookCover(source: .data(book.coverData) / .asset("cover.…"), width:)` | – |
-| Progress | `QsProgressBar(value:)` | – |
+| Progress bar (M 8 pt / S 4 pt) | `QsProgressBar(value:, size: .m / .s)` | – |
+| Back button (iOS: chevron + "Back", 44 pt) | `QsBackButton()`. Onboarding hides the system nav bar and shows this; the edge swipe still works | – |
 | Banner · info | `InfoBanner(message:)` | – |
 | Logo | `QsLogo()` | – |
 

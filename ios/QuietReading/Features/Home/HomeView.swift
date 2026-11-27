@@ -57,6 +57,9 @@ struct HomeView: View {
         }
     }
 
+    /// Figma: Books › Book grid cell (105 pt).
+    private static let tileWidth: CGFloat = 105
+
     private var upNextSection: some View {
         VStack(alignment: .leading, spacing: Space.s20) {
             HStack {
@@ -74,12 +77,16 @@ struct HomeView: View {
                 HStack(alignment: .top, spacing: Space.s16) {
                     ForEach(upNext) { book in
                         VStack(alignment: .leading, spacing: Space.s8) {
-                            BookCover(source: .data(book.coverData), title: book.title, width: 100)
+                            BookCover(source: .data(book.coverData), title: book.title, width: Self.tileWidth)
                             Text(book.title)
                                 .font(.footnote.weight(.medium))
                                 .foregroundStyle(theme.palette.ink)
                                 .lineLimit(2)
-                                .frame(width: 100, alignment: .leading)
+                                .frame(width: Self.tileWidth, alignment: .leading)
+                            if let progress = book.progress, book.currentPage > 0 {
+                                QsProgressBar(value: progress, size: .s)
+                                    .frame(width: Self.tileWidth)
+                            }
                         }
                         .accessibilityElement(children: .ignore)
                         .accessibilityLabel(Text("\(book.title), \(book.author)"))
@@ -149,7 +156,7 @@ private struct CurrentBookCard: View {
         .padding(Space.s16)
         .background(theme.palette.surface, in: RoundedRectangle(cornerRadius: theme.radii.card, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: theme.radii.card, style: .continuous)
-            .strokeBorder(theme.palette.line, lineWidth: 0.75))
+            .strokeBorder(theme.palette.line, lineWidth: Size.stroke))
     }
 }
 

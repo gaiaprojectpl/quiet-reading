@@ -36,20 +36,25 @@ struct RootView: View {
 
 private struct MainTabs: View {
     @State private var tab: AppTab = .home
+    @State private var showAdd = false
 
     var body: some View {
         Group {
             switch tab {
-            case .home: HomeView(onSeeAll: { tab = .library }, onAddBook: { tab = .add })
+            case .home: HomeView(onSeeAll: { tab = .library }, onAddBook: { showAdd = true })
             case .library: LibraryView()
-            case .add: AddBookView()
+            case .add: EmptyView() // Add is a sheet, never a tab
             case .stats: StatsView()
             case .settings: SettingsView()
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            QsTabBar(selection: $tab)
+            QsTabBar(selection: $tab, onAdd: { showAdd = true })
+        }
+        .sheet(isPresented: $showAdd) {
+            AddBookView()
+                .presentationDragIndicator(.visible)
         }
     }
 }

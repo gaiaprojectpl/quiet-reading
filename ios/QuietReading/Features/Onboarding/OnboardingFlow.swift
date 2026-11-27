@@ -70,6 +70,7 @@ struct OnboardingFlow: View {
 /// Buttons sit in `actions`, pinned to the bottom so they're within thumb reach.
 struct OnboardingPage<Content: View, Actions: View>: View {
     var spacing: CGFloat = Space.s20
+    var showsBack = true
     @ViewBuilder var content: Content
     @ViewBuilder var actions: Actions
     @Environment(\.theme) private var theme
@@ -90,13 +91,20 @@ struct OnboardingPage<Content: View, Actions: View>: View {
                 .padding(.bottom, Space.s8)
                 .background(theme.palette.bg)
         }
-        .navigationBarTitleDisplayMode(.inline)
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if showsBack {
+                HStack { QsBackButton(); Spacer() }
+                    .padding(.horizontal, Space.s12)
+                    .background(theme.palette.bg)
+            }
+        }
+        .toolbar(.hidden, for: .navigationBar)
     }
 }
 
 extension OnboardingPage where Actions == EmptyView {
-    init(spacing: CGFloat = Space.s20, @ViewBuilder content: () -> Content) {
-        self.init(spacing: spacing, content: content, actions: { EmptyView() })
+    init(spacing: CGFloat = Space.s20, showsBack: Bool = true, @ViewBuilder content: () -> Content) {
+        self.init(spacing: spacing, showsBack: showsBack, content: content, actions: { EmptyView() })
     }
 }
 
@@ -122,7 +130,7 @@ struct LandingView: View {
     @Environment(\.theme) private var theme
 
     var body: some View {
-        OnboardingPage(spacing: Space.s16) {
+        OnboardingPage(spacing: Space.s16, showsBack: false) {
             QsLogo()
             CoverFan()
             Text("Your reading life, quietly on your home screen.")
