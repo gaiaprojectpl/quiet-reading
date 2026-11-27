@@ -1,4 +1,5 @@
 import SwiftUI
+import PencilKit
 import SwiftData
 import Vision
 
@@ -13,6 +14,7 @@ struct AddQuoteSheet: View {
     @Environment(\.theme) private var theme
     @Environment(\.dismiss) private var dismiss
     @State private var height: CGFloat = 260
+    @Environment(\.duoLayout) private var duo
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.s16) {
@@ -23,7 +25,11 @@ struct AddQuoteSheet: View {
             QsListCard {
                 QsListRow(icon: "qs.barcode", title: "Photograph the page",
                           subtitle: "Select the lines. Text is read on your phone.") { choose(.photo) }
-                QsListRow(icon: "qs.quote", title: "Type or paste") { choose(.typed) }
+                if duo.mode != .phone {
+                    QsListRow(icon: "qs.pencil", title: "Type or write", subtitle: "Write with Pencil or type it in.") { choose(.typed) }
+                } else {
+                    QsListRow(icon: "qs.quote", title: "Type or paste") { choose(.typed) }
+                }
             }
         }
         .padding(.horizontal, Space.s20)
@@ -306,6 +312,15 @@ struct QuoteEditor: View {
     @State private var showOnWidget = true
     @State private var triedSave = false
     @FocusState private var focus: Bool
+    @Environment(\.duoLayout) private var duo
+    @AppStorage(WriteInput.key) private var savedMode = "write"
+    @State private var writing = false
+    @State private var canvas = PKCanvasView()
+    @State private var hasInk = false
+    @State private var saving = false
+
+    /// Write (Pencil) is offered on iPhone Duo for typed quotes; photo quotes start from the read text.
+    private var canWrite: Bool { duo.mode != .phone && !draft.fromPhoto }
 
     private static let moods = ["Hopeful", "Cozy", "Sad", "Funny"]
     private var pageMissing: Bool { draft.fromPhoto && page == nil }
@@ -326,6 +341,14 @@ struct QuoteEditor: View {
                     if text.count > 140 {
                         InfoBanner(message: "Long quotes are fine. The widget shows the first 140 characters.")
                     }
+                    if canWrite {
+                        QsSegmented(options: [(true, String(localized: "Write")), (false, String(localized: "Type"))], selection: $writing)
+                    }
+                    if writing {
+                        labeled("Quote") {
+                            HandwritingPad(canvas: $canvas, hasInk: $hasInk).frame(height: 260)
+                        }
+                    } else {
                     labeled("Quote") {
                         TextField("Quote", text: $text, axis: .vertical)
                             .font(theme.headline(17, relativeTo: .body))
@@ -338,6 +361,7 @@ struct QuoteEditor: View {
                         if draft.fromPhoto {
                             helper("Read from your photo. Fix anything we got wrong.")
                         }
+                    }
                     }
                     labeled("Page") {
                         HStack {
@@ -381,19 +405,27 @@ struct QuoteEditor: View {
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            Button("Save", action: save)
+            Button(action: save) {
+                if saving { ProgressView().tint(theme.palette.onAccent) } else { Text("Save") }
+            }
                 .buttonStyle(QsButtonStyle(priority: .primary))
-                .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled((writing ? !hasInk : text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) || saving)
                 .padding(.horizontal, Space.s20)
                 .padding(.top, Space.s12)
                 .padding(.bottom, QsLayout.actionsAboveBottomLine)
                 .background(theme.palette.bg)
         }
         .background(theme.palette.bg.ignoresSafeArea())
+        .gentleAnimation(writing)
         .onAppear {
             text = draft.text
             page = draft.page
-            if draft.text.isEmpty { focus = true }
+            writing = canWrite && savedMode == "write"
+            if draft.text.isEmpty && !writing { focus = true }
+        }
+        .onChange(of: writing) { _, w in
+            savedMode = w ? "write" : "type"
+            focus = w ? false : true
         }
     }
 
@@ -409,8 +441,19 @@ struct QuoteEditor: View {
     }
 
     private func save() {
-        let quote = Quote(text: text.trimmingCharacters(in: .whitespacesAndNewlines), page: page, mood: mood,
+        guard writing else { store(text.trimmingCharacters(in: .whitespacesAndNewlines), drawing: nil); return }
+        saving = true
+        let drawing = canvas.drawing
+        Task {
+            let read = await HandwritingReader.text(from: drawing)
+            store(read.isEmpty ? String(localized: "Handwritten quote") : read, drawing: drawing.dataRepresentation())
+        }
+    }
+
+    private func store(_ quoteText: String, drawing: Data?) {
+        let quote = Quote(text: quoteText, page: page, mood: mood,
                           showOnWidget: showOnWidget, fromPhoto: draft.fromPhoto)
+        quote.drawing = drawing
         quote.book = book
         context.insert(quote)
         try? context.save()

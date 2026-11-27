@@ -109,7 +109,16 @@ struct BookDetailView: View {
         }) {
             AddQuoteSheet(onChoose: { pendingQuoteSource = $0 })
         }
-        .fullScreenCover(item: $quoteSource) { QuoteFlow(book: book, source: $0).duoCover() }
+        .fullScreenCover(item: Binding(get: { quoteSource == .photo ? quoteSource : nil }, set: { quoteSource = $0 })) {
+            QuoteFlow(book: book, source: $0).duoCover()
+        }
+        // Type or write: a modal like Add a note.
+        .sheet(item: Binding(get: { quoteSource == .typed ? quoteSource : nil }, set: { quoteSource = $0 })) {
+            QuoteFlow(book: book, source: $0)
+                .padding(.top, Space.s16)
+                .presentationDetents([.large])
+                .presentationCornerRadius(theme.radii.sheet)
+        }
         .sheet(isPresented: $addingNote) { NoteComposer(book: book) }
         // Cover photo: take one of the book in your hands, or pick one from Photos.
         .confirmationDialog(book.coverData == nil ? "Add a cover" : "Change the cover", isPresented: $coverMenu, titleVisibility: .visible) {
@@ -328,9 +337,13 @@ struct BookDetailView: View {
                     HStack(alignment: .top, spacing: Space.s8) {
                         Image("qs.quote").resizable().frame(width: Size.iconS, height: Size.iconS)
                             .foregroundStyle(theme.palette.accentInk).padding(.top, Space.s2).accessibilityHidden(true)
-                        Text("“\(q.text)”")
-                            .font(theme.headline(15, relativeTo: .body))
-                            .foregroundStyle(theme.palette.ink)
+                        if let ink = q.drawing {
+                            HandwrittenNoteView(data: ink, label: String(localized: "Handwritten quote: \(q.text)"))
+                        } else {
+                            Text("“\(q.text)”")
+                                .font(theme.headline(15, relativeTo: .body))
+                                .foregroundStyle(theme.palette.ink)
+                        }
                     }
                     Text([quoteMeta(q), isNew ? String(localized: "new") : nil].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · "))
                         .font(.footnote).foregroundStyle(theme.palette.ink2)

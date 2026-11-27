@@ -13,7 +13,7 @@ struct NoteComposer: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.duoLayout) private var duo
     @Environment(\.modelContext) private var context
-    @AppStorage("noteInputMode") private var savedMode = "write"
+    @AppStorage(WriteInput.key) private var savedMode = "write"
     @State private var mode: Mode = .type
     @State private var text = ""
     @State private var page = ""
@@ -235,6 +235,8 @@ nonisolated enum HandwritingReader {
 /// A saved handwritten note, drawn in the theme's ink.
 struct HandwrittenNoteView: View {
     let data: Data
+    /// What was read from the handwriting, for VoiceOver.
+    var label: String? = nil
     @Environment(\.theme) private var theme
 
     var body: some View {
@@ -243,7 +245,8 @@ struct HandwrittenNoteView: View {
             Image(uiImage: image).renderingMode(.template).resizable().scaledToFit()
                 .foregroundStyle(theme.palette.ink)
                 .frame(maxWidth: .infinity, maxHeight: 220, alignment: .leading)
-                .accessibilityHidden(true)
+                .accessibilityHidden(label == nil)
+                .accessibilityLabel(Text(label ?? ""))
         }
     }
 }
@@ -290,4 +293,9 @@ struct HandwritingSheet: View {
         .presentationDetents([.large])
         .presentationCornerRadius(theme.radii.sheet)
     }
+}
+
+/// Type or Write (Pencil) – one remembered choice shared by notes and quotes.
+nonisolated enum WriteInput {
+    static let key = "noteInputMode"
 }

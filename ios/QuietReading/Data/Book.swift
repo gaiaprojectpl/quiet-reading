@@ -168,6 +168,8 @@ final class Quote {
     var showOnWidget: Bool
     var fromPhoto: Bool
     var date: Date
+    /// Handwritten quote (PencilKit drawing); `text` keeps what was read from it.
+    @Attribute(.externalStorage) var drawing: Data?
     var book: Book?
 
     init(text: String, page: Int?, mood: String?, showOnWidget: Bool, fromPhoto: Bool) {
