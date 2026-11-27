@@ -45,16 +45,16 @@ struct FinishedView: View {
         Group {
             if duo.mode == .book {
                 HStack(spacing: duo.fold.width) {
-                    ScrollView { celebration.padding(Space.s20) }
+                    ScrollView { celebration.gentleAppear().padding(Space.s20) }
                         .frame(width: duo.fold.minX)
-                    ScrollView { feelings.padding(Space.s20) }
+                    ScrollView { feelings.gentleAppear(delay: Motion.fast).padding(Space.s20) }
                         .safeAreaInset(edge: .bottom, spacing: 0) { actions }
                 }
             } else {
                 ScrollView {
                     VStack(spacing: Space.s16) {
-                        celebration
-                        feelings
+                        celebration.gentleAppear()
+                        feelings.gentleAppear(delay: Motion.fast)
                     }
                     .padding(.horizontal, Space.s20)
                     .padding(.top, Space.s24)

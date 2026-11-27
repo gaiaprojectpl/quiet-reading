@@ -42,6 +42,7 @@ struct HomeView: View {
                 }
                 .background(theme.palette.bg.ignoresSafeArea())
                 .toolbar(.hidden, for: .navigationBar)
+                .navigationDestination(for: Book.self) { BookDetailView(book: $0) }
             }
             .sheet(item: $updating, onDismiss: {
                 // "Finished" in the sheet: show the Finished moment once the sheet has gone.
@@ -217,6 +218,7 @@ struct HomeView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(alignment: .top, spacing: Space.s16) {
                     ForEach(upNext) { book in
+                        NavigationLink(value: book) {
                         VStack(alignment: .leading, spacing: Space.s8) {
                             BookCover(source: .data(book.coverData), title: book.title, width: Self.tileWidth)
                             Text(book.title)
@@ -231,6 +233,8 @@ struct HomeView: View {
                         }
                         .accessibilityElement(children: .ignore)
                         .accessibilityLabel(Text("\(book.title), \(book.author)"))
+                        }
+                        .buttonStyle(QsPressStyle())
                     }
                 }
                 .padding(.vertical, Space.s4) // room for the cover shadow
@@ -283,6 +287,8 @@ private struct CurrentBookCard: View {
                         Text("p. \(book.currentPage) of \(pages) · \(progress, format: .percent.precision(.fractionLength(0)))")
                             .font(.footnote)
                             .foregroundStyle(theme.palette.ink2)
+                            .contentTransition(.numericText())
+                            .gentleAnimation(book.currentPage)
                         timeLeft
                     } else if book.currentPage > 0 {
                         Text("p. \(book.currentPage)")

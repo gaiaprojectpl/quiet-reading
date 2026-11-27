@@ -25,6 +25,7 @@ private struct QsButtonBody: View {
     let size: QsButtonStyle.ButtonSize
     @Environment(\.theme) private var theme
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var colors: (fg: Color, bg: Color, border: Color) {
         let p = theme.palette
@@ -59,5 +60,8 @@ private struct QsButtonBody: View {
             .overlay(shape.strokeBorder(c.border, lineWidth: Size.stroke))
             .contentShape(shape)
             .frame(minHeight: Size.touchIos)
+            // Gentle press: a slight settle and the pressed colour easing in.
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.98 : 1)
+            .animation(.easeOut(duration: Motion.fast), value: configuration.isPressed)
     }
 }

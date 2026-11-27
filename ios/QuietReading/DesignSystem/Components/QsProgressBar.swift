@@ -18,6 +18,7 @@ struct QsProgressBar: View {
             }
         }
         .frame(height: size == .m ? Space.s8 : Space.s4)
+        .gentleAnimation(value, duration: Motion.slow)
         .accessibilityElement()
         .accessibilityValue(Text(value, format: .percent.precision(.fractionLength(0))))
     }

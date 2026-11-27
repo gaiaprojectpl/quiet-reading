@@ -6,13 +6,24 @@ struct QsListRow: View {
     let icon: String
     let title: LocalizedStringKey
     var subtitle: LocalizedStringKey?
-    let action: () -> Void
+    /// nil = information only: no chevron, not tappable.
+    var action: (() -> Void)?
     @Environment(\.theme) private var theme
     @ScaledMetric(relativeTo: .body) private var tile = Space.s40
     @ScaledMetric(relativeTo: .body) private var glyph = Size.iconM + 2
 
     var body: some View {
-        Button(action: action) {
+        if let action {
+            Button(action: action) { row(chevron: true) }
+                .buttonStyle(.plain)
+                .accessibilityElement(children: .combine)
+        } else {
+            row(chevron: false)
+                .accessibilityElement(children: .combine)
+        }
+    }
+
+    private func row(chevron: Bool) -> some View {
             HStack(spacing: Space.s16) {
                 Image(icon)
                     .resizable()
@@ -28,18 +39,17 @@ struct QsListRow: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                Image("qs.chevron")
-                    .resizable()
-                    .frame(width: Size.iconS + 2, height: Size.iconS + 2)
-                    .foregroundStyle(theme.palette.ink2)
-                    .accessibilityHidden(true)
+                if chevron {
+                    Image("qs.chevron")
+                        .resizable()
+                        .frame(width: Size.iconS + 2, height: Size.iconS + 2)
+                        .foregroundStyle(theme.palette.ink2)
+                        .accessibilityHidden(true)
+                }
             }
             .padding(Space.s16)
             .frame(minHeight: Size.touchIos)
             .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityElement(children: .combine)
     }
 }
 

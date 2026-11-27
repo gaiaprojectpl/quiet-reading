@@ -5,6 +5,8 @@ import SwiftUI
 struct QsStarRating: View {
     @Binding var value: Double?
     @Environment(\.theme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var bumped: Int?
     @ScaledMetric(relativeTo: .title) private var star = Space.s32 + Space.s4
 
     var body: some View {
@@ -14,11 +16,13 @@ struct QsStarRating: View {
                     .resizable()
                     .frame(width: star, height: star)
                     .foregroundStyle(theme.palette.accent)
+                    .scaleEffect(bumped == index && !reduceMotion ? 1.15 : 1)
                     .frame(minWidth: Size.touchIos, minHeight: Size.touchIos)
                     .contentShape(Rectangle())
                     .onTapGesture { tap(index) }
             }
         }
+        .sensoryFeedback(.selection, trigger: value)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Rating")
         .accessibilityValue(value.map { Text("\($0, format: .number) stars") } ?? Text("Not rated"))
@@ -42,5 +46,8 @@ struct QsStarRating: View {
     private func tap(_ index: Int) {
         let whole = Double(index)
         value = value == whole ? whole - 0.5 : whole
+        // A small, soft bump on the tapped star.
+        withAnimation(.easeOut(duration: Motion.fast)) { bumped = index }
+        withAnimation(.easeOut(duration: Motion.base).delay(Motion.fast)) { bumped = nil }
     }
 }

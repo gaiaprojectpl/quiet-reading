@@ -27,6 +27,7 @@ struct QsTabRail: View {
         .overlay(Capsule().strokeBorder(theme.palette.line, lineWidth: Size.stroke))
         .shadow(color: theme.palette.scrim.opacity(0.06), radius: 2, x: 0, y: 1) // Elevation/1 · card
         .sensoryFeedback(.selection, trigger: selection)
+        .gentleAnimation(selection, duration: Motion.fast)
     }
 }
 

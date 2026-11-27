@@ -4,14 +4,16 @@ import SwiftUI
 struct QsChip: View {
     let title: String
     var isSelected = false
+    /// Optional leading icon (e.g. the shelf chip's bookmark). Replaces the selected check.
+    var icon: String? = nil
     let action: () -> Void
     @Environment(\.theme) private var theme
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: Space.s8) {
-                if isSelected {
-                    Image("qs.check")
+                if let icon = icon ?? (isSelected ? "qs.check" : nil) {
+                    Image(icon)
                         .resizable()
                         .frame(width: Size.iconS, height: Size.iconS)
                         .foregroundStyle(theme.palette.accentInk)
@@ -29,7 +31,9 @@ struct QsChip: View {
                                             lineWidth: isSelected ? 1.5 : Size.stroke))
             .contentShape(Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(QsPressStyle())
+        .gentleAnimation(isSelected, duration: Motion.fast)
+        .sensoryFeedback(.selection, trigger: isSelected)
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 }

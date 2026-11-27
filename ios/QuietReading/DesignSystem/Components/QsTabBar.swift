@@ -56,6 +56,7 @@ struct QsTabBar: View {
                 .ignoresSafeArea(edges: .bottom)
         }
         .sensoryFeedback(.selection, trigger: selection)
+        .gentleAnimation(selection, duration: Motion.fast)
     }
 }
 

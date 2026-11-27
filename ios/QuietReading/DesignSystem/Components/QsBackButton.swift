@@ -4,6 +4,8 @@ import UIKit
 /// 🧱 Components › Back button (iOS): chevron + "Back" in accentInk, 44 pt tall,
 /// pressed = 40 % opacity. Read by VoiceOver as "Back, button".
 struct QsBackButton: View {
+    /// Usually the previous screen's name ("Library"), otherwise "Back".
+    var title: LocalizedStringKey = "Back"
     var action: (() -> Void)?
     @Environment(\.theme) private var theme
     @Environment(\.dismiss) private var dismiss
@@ -18,7 +20,7 @@ struct QsBackButton: View {
                     .resizable()
                     .frame(width: icon, height: icon)
                     .accessibilityHidden(true)
-                Text("Back")
+                Text(title)
                     .font(.body)
             }
             .foregroundStyle(theme.palette.accentInk)

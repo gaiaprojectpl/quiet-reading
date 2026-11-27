@@ -6,6 +6,34 @@ nonisolated enum ReadingStatus: String, Codable, CaseIterable, Sendable {
     case reading, toRead, read, stopped
 }
 
+nonisolated extension ReadingStatus {
+    /// Shelf order in the Library.
+    static let shelves: [ReadingStatus] = [.reading, .toRead, .read, .stopped]
+
+    var shelfName: String {
+        switch self {
+        case .reading: String(localized: "Reading")
+        case .toRead: String(localized: "Want to read")
+        case .read: String(localized: "Finished")
+        case .stopped: String(localized: "Didn’t finish")
+        }
+    }
+
+    /// Name used on a single book ("Reading now").
+    var bookLabel: String {
+        self == .reading ? String(localized: "Reading now") : shelfName
+    }
+
+    var icon: String {
+        switch self {
+        case .reading: "qs.bookmark"
+        case .toRead: "qs.heart"
+        case .read: "qs.check"
+        case .stopped: "qs.moon"
+        }
+    }
+}
+
 /// Where a book came from. Kept so a later re-import can skip duplicates.
 nonisolated enum BookSource: String, Codable, Sendable {
     case goodreads, storyGraph, manual
@@ -77,6 +105,19 @@ final class Book {
         guard let pageCount else { return nil }
         let left = max(0, pageCount - (page ?? currentPage))
         return Int((Double(left) * minutesPerPage).rounded())
+    }
+
+    /// When reading started: the first progress update, otherwise when it was added.
+    var startedDate: Date {
+        sessions.map(\.date).min() ?? dateAdded
+    }
+
+    var sourceLabel: String {
+        switch BookSource(rawValue: sourceRaw) ?? .manual {
+        case .goodreads: String(localized: "Goodreads")
+        case .storyGraph: String(localized: "StoryGraph")
+        case .manual: String(localized: "Added on this phone")
+        }
     }
 
     /// Used to skip books that are already on the shelf.

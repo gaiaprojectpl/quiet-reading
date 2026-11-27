@@ -11,16 +11,27 @@ struct BookCover: View {
 
     let source: Source
     var title: String = ""
-    var width: CGFloat = Size.coverM
+    /// Fixed width (height = 1.5 × width), or nil to fill the available width (grid tiles).
+    var width: CGFloat? = Size.coverM
     @Environment(\.theme) private var theme
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: theme.radii.cover, style: .continuous)
-        content
-            .frame(width: width, height: width * 1.5)
+        sized
             .clipShape(shape)
             .shadow(color: .black.opacity(0.16), radius: 4, x: 0, y: 3)
             .accessibilityHidden(true)
+    }
+
+    @ViewBuilder private var sized: some View {
+        if let width {
+            content.frame(width: width, height: width * 1.5)
+        } else {
+            Color.clear
+                .aspectRatio(2 / 3, contentMode: .fit)
+                .frame(maxWidth: .infinity)
+                .overlay { content }
+        }
     }
 
     @ViewBuilder private var content: some View {
