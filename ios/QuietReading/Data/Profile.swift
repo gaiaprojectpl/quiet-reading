@@ -126,7 +126,11 @@ final class PlusAccess {
     init() {
         isUnlocked = UserDefaults.standard.bool(forKey: "plusUnlocked")
         #if DEBUG
-        if UserDefaults.standard.object(forKey: "qsPlus") != nil { isUnlocked = UserDefaults.standard.bool(forKey: "qsPlus") }
+        // Test builds: `-qsPlus YES|NO` sets Plus and keeps it for later launches (so widgets match).
+        if UserDefaults.standard.object(forKey: "qsPlus") != nil {
+            isUnlocked = UserDefaults.standard.bool(forKey: "qsPlus")
+            UserDefaults.standard.set(isUnlocked, forKey: "plusUnlocked")
+        }
         #endif
         // Purchases approved later (Ask to Buy), refunds and purchases on another device.
         updates = Task { [weak self] in
