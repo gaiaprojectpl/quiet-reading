@@ -64,6 +64,14 @@ enum ReminderScheduler {
     static func cancel() {
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [id])
     }
+
+    /// Keeps the reminder about the book read most recently (and its latest page), if the reminder is on.
+    static func refresh(book: Book?) {
+        let defaults = UserDefaults.standard
+        guard defaults.bool(forKey: ProfileKeys.reminderOn) else { return }
+        let minutes = defaults.object(forKey: ProfileKeys.reminderMinutes) as? Int ?? 20 * 60 + 30
+        schedule(minutes: minutes, book: book)
+    }
 }
 
 /// Export (GDPR): books and quotes as CSV files the reader can save or share.

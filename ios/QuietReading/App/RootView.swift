@@ -21,6 +21,9 @@ struct RootView: View {
     @AppStorage(ProfileKeys.lastImport) private var lastImport = 0.0
     @AppStorage(ProfileKeys.lastImportSource) private var lastImportSource = ""
     @Environment(\.modelContext) private var context
+    /// The current book = the Reading-shelf book updated most recently (agreed rule).
+    @Query(filter: #Predicate<Book> { $0.statusRaw == "reading" }, sort: \Book.lastUpdated, order: .reverse)
+    private var reading: [Book]
 
     private var resolvedTheme: ThemeID {
         if contrast == .increased || forceHighContrast { return .highContrast }
@@ -56,6 +59,10 @@ struct RootView: View {
                 notifications.show(String(localized: "Your library is ready"),
                                    message: String(localized: "\(importSession.total) books"))
             }
+        }
+        // The daily reminder always names the current book and its latest page.
+        .onChange(of: reading.first.map { "\($0.persistentModelID.hashValue)-\($0.currentPage)" }) {
+            ReminderScheduler.refresh(book: reading.first)
         }
         .fullScreenCover(isPresented: Bindable(plus).showPaywall) { PlusView() }
         .environment(importSession)
