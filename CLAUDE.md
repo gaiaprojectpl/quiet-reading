@@ -8,8 +8,8 @@ Brand is standalone (not Ibexa). Pastel, delicate, aimed at women readers. **WCA
   - **playground** (Ibexa drafts, key `Tq6PW3rvfMxncJfpmyjKoz`): https://www.figma.com/design/Tq6PW3rvfMxncJfpmyjKoz/playground – **default for Figma MCP**: the connected account has a Full seat there, so no rate limit.
   - **quiet-reading** (Kaja's private Pro team, key `F2BQfzE22CMwMkI4gZXZNe`): https://www.figma.com/design/F2BQfzE22CMwMkI4gZXZNe/quiet-reading – the private master copy. MCP access is View seat only (~6 calls/month), so don't read it via MCP unless Kaja asks.
   - Rule: use the file Kaja links in her message. If she gives no link, use playground. If the two may differ (she mentions editing one of them), ask which is current.
-  - Mockups = page 🎇 UI test (`1:301`), components = 🧱 Components (`46:8`).
-  Pages: 🧱 Components (all components + variables), 🎇 UI test (Flows 0–10, iOS + Android rows, errors/edge cases), 🖼️ Graphics, 📱 Prototype.
+  - Mockups = page 🎇 Mockups (`1:301`), components = 🧱 Components (`46:8`).
+  Pages: 🧱 Components (all components + variables), 🎇 Mockups (Flows 0–10, iOS + Android rows, errors/edge cases), 🖼️ Graphics, 📱 Prototype.
 - Coded clickable prototype: https://claude.ai/artifact/8rxHGvZqe7ULazEQbH7d5P
 - Product requirements (PRD): docs/Quiet-Reading-PRD.pdf · living version: https://claude.ai/artifact/1C7PDVoFt2hUAsRdkUKh7o
 - Bundle ID / package: `app.quietreading` · display name "Quiet Reading" · English only (but every string localizable).

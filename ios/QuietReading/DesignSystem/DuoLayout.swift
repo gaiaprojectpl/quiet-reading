@@ -58,13 +58,12 @@ struct DuoLayout: Equatable {
         // Only a foldable reports a fold (even while flat). iPhones report the Dynamic Island as occlusion, so that isn't enough.
         let isDuo = !geo.reservedRegions(kind: .division, options: .includeInactive).isEmpty
 
-        // The fold only matters while the phone is open.
-        var fold: ReservedRegion?
-        if let hinge, hinge.status != .closed {
-            fold = geo.reservedRegions(kind: .division, options: .includeInactive).first
-        } else if hinge == nil {
-            fold = geo.reservedRegions(kind: .division).first { $0.isActive }
-        }
+        // The fold only matters while the phone is open. When the app starts already open, the hinge
+        // hasn't been reported yet and a flat fold counts as "inactive" – so use it unless the hinge says closed.
+        // (Closed, the outer screen reports no fold at all.)
+        let fold: ReservedRegion? = hinge?.status == .closed
+            ? nil
+            : geo.reservedRegions(kind: .division, options: .includeInactive).first
 
         if let fold {
             let vertical = fold.frame.height > fold.frame.width

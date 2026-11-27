@@ -33,6 +33,22 @@ struct ScreenScaffold<Content: View, Actions: View>: View {
 
     var body: some View {
         NavigationStack {
+            if duo.mode == .book {
+                // Duo open: the screen on the left page, a calm illustration on the right – nothing crosses the fold.
+                HStack(spacing: duo.fold.width) {
+                    page.frame(width: duo.fold.minX)
+                    DuoIllustrationPage()
+                }
+                .background(theme.palette.bg.ignoresSafeArea())
+                .toolbar(.hidden, for: .navigationBar)
+            } else {
+                page
+            }
+        }
+    }
+
+    private var page: some View {
+        Group {
             ScrollView {
                 VStack(spacing: Space.s16) {
                     ScreenTitle(title: title)

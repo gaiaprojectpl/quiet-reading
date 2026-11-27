@@ -2,9 +2,9 @@
 
 How to turn a Figma node into native code in this repo. Read with `CLAUDE.md` (product, UX-writing and accessibility rules live there and are not repeated here).
 
-Figma files: **playground** `Tq6PW3rvfMxncJfpmyjKoz` (default for MCP) and **quiet-reading** `F2BQfzE22CMwMkI4gZXZNe` (private master, MCP rate-limited). They're copies with the same node IDs. Use the one Kaja links, otherwise playground (see CLAUDE.md). Components and variables are on the page 🧱 Components (`46:8`); mockups are on 🎇 UI test (`1:301`).
+Figma files: **playground** `Tq6PW3rvfMxncJfpmyjKoz` (default for MCP) and **quiet-reading** `F2BQfzE22CMwMkI4gZXZNe` (private master, MCP rate-limited). They're copies with the same node IDs. Use the one Kaja links, otherwise playground (see CLAUDE.md). Components and variables are on the page 🧱 Components (`46:8`); mockups are on 🎇 Mockups (`1:301`).
 
-Where things are on 🎇 UI test (all in Peach & Sage, inside `32:27 Flows`; each flow has an iOS row and an Android row):
+Where things are on 🎇 Mockups (all in Peach & Sage, inside `32:27 Flows`; each flow has an iOS row and an Android row):
 
 | Flow | Node | Flow | Node |
 |---|---|---|---|
@@ -98,9 +98,16 @@ On iOS, always use `RoundedRectangle(cornerRadius:style: .continuous)`, which ma
 
 ## 2. Components
 
+Figma component properties use these names (renamed 27 Nov): **Priority** (Primary / Secondary / Outline / Text / Destructive), **Size** (Small / Medium / Large / Extra large), **State** (Enabled / Active = pressed / Focus / Disabled / Selected / Selected active / Selected focus / Loading), **Selection**, **Selected item**, **Type**. Code mirrors them (e.g. `QsButtonStyle(priority: .destructive, size: .small)`).
+
+Where things live on 🧱 Components (`46:8`): Button `47:2`, Navigation `47:166` (nav bar, nav item, back button), **iPhone Duo `195:1481`** (Duo rail `131:1705`, system column), Books `69:9751` (cover, current book card, grid cell, progress), Notifications & banners `47:1083`, Settings & system `72:9822`, **Widgets Final `177:16015`** (Widget 2/Free · …, Widget 2/Plus · Soft / Colourful / Modern …, Widget 2/System · Lock Screen / StandBy – use these for the widget phase; the old "C · Widgets" section is gone), Component specification `200:1481`.
+
+Variables: colours in "App themes" (`c/…`, one mode per theme) now alias "Palette primitives" (`peach/100`, `sage/700`…). Always resolve to the final value; the app keeps the resolved per-theme values in `tokens.json`. `c/system/*` (camera, keyboard, hardware) only draw devices in mockups – not app tokens. "zz Legacy (do not use)" is ignored.
+
+
 | Figma (🧱 Components) | iOS | Android |
 |---|---|---|
-| Button: Primary / Secondary (accent border, no fill) / Outline (neutral border) / Text / Danger · Large 48 / Small 40 | `Button("…"){}.buttonStyle(QsButtonStyle(kind: .secondary, size: .small))` – `DesignSystem/Components/QsButtonStyle.swift` | `QsButton("…", onClick, kind = QsButtonKind.Primary)` – `designsystem/components/QsButton.kt` |
+| Button: Priority = Primary / Secondary (accent border, no fill) / Outline (neutral border) / Text / Destructive · Large 48 / Small 40 | `Button("…"){}.buttonStyle(QsButtonStyle(priority: .secondary, size: .small))` – `DesignSystem/Components/QsButtonStyle.swift` | `QsButton("…", onClick, kind = QsButtonKind.Primary)` – `designsystem/components/QsButton.kt` |
 | Empty state | `EmptyStateView(systemImage:title:message:)` | `EmptyState(icon, title, message)` |
 | Screen shell (bg, margins, serif large title) | `ScreenScaffold(title:) { … }` (20 pt sides; system nav bar hidden, title is `ScreenTitle`) | `Screen(title) { … }` (16 dp sides) |
 | Nav bar: Home · Library · Add · Stats · Settings | `QsTabBar` (custom, matches Figma: soft/soft2/tintStrong pills, Add = accent circle that opens the Add **sheet**, never a tab) used in `App/RootView.swift` | `MainActivity.kt` (`NavigationBar`) |

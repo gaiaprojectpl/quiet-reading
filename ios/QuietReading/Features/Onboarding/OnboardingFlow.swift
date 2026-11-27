@@ -136,9 +136,12 @@ struct DuoIllustrationPage: View {
     @Environment(\.theme) private var theme
 
     var body: some View {
-        CoverFan()
-            .padding(Space.s20)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // The fan is drawn for a 353 pt wide phone; scale it to fit the page so covers stay inside the card.
+        GeometryReader { geo in
+            CoverFan()
+                .scaleEffect(min(1, (geo.size.width - Space.s40) / 380))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
             .background(theme.palette.soft, in: RoundedRectangle(cornerRadius: theme.radii.card, style: .continuous))
             .padding(Space.s20)
             .accessibilityHidden(true)
@@ -204,9 +207,9 @@ struct LandingView: View {
 
     @ViewBuilder private var actions: some View {
         Button("Get started", action: onGetStarted)
-            .buttonStyle(QsButtonStyle(kind: .primary))
+            .buttonStyle(QsButtonStyle(priority: .primary))
         Button("I already have an account", action: onHaveAccount)
-            .buttonStyle(QsButtonStyle(kind: .secondary))
+            .buttonStyle(QsButtonStyle(priority: .secondary))
         Text("Free to use · Plus themes are optional")
             .font(.footnote)
             .foregroundStyle(theme.palette.ink2)
@@ -341,7 +344,7 @@ struct ImportProgressView: View {
             }
         } actions: {
             Button("Continue in the background", action: onContinue)
-                .buttonStyle(QsButtonStyle(kind: .secondary))
+                .buttonStyle(QsButtonStyle(priority: .secondary))
         }
         .onAppear { showError = session.phase == .failed }
         .onChange(of: session.phase) { _, phase in
@@ -381,9 +384,9 @@ struct WidgetGuideView: View {
             Step(number: 3, text: "Search “Quiet Reading” and pick a size")
         } actions: {
             Button("Done", action: onDone)
-                .buttonStyle(QsButtonStyle(kind: .primary))
+                .buttonStyle(QsButtonStyle(priority: .primary))
             Button("Remind me later", action: onDone)
-                .buttonStyle(QsButtonStyle(kind: .text))
+                .buttonStyle(QsButtonStyle(priority: .text))
         }
     }
 
@@ -459,7 +462,7 @@ struct NotReadyView: View {
             )
         } actions: {
             Button("Go back", action: onBack)
-                .buttonStyle(QsButtonStyle(kind: .primary))
+                .buttonStyle(QsButtonStyle(priority: .primary))
         }
     }
 }

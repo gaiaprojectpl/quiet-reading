@@ -23,7 +23,7 @@ struct HomeView: View {
                 )
             } actions: {
                 Button("Add a book", action: onAddBook)
-                    .buttonStyle(QsButtonStyle(kind: .primary))
+                    .buttonStyle(QsButtonStyle(priority: .primary))
             }
         } else {
             NavigationStack {
@@ -273,7 +273,7 @@ private struct BookActions: View {
     var body: some View {
         HStack(spacing: Space.s12) {
             Button("Update", action: onUpdate)
-                .buttonStyle(QsButtonStyle(kind: .primary))
+                .buttonStyle(QsButtonStyle(priority: .primary))
             Button("Finished") {
                 book.status = .read
                 book.dateFinished = .now
@@ -281,7 +281,7 @@ private struct BookActions: View {
                 book.lastUpdated = .now
                 try? context.save()
             }
-            .buttonStyle(QsButtonStyle(kind: .secondary))
+            .buttonStyle(QsButtonStyle(priority: .secondary))
         }
     }
 }
@@ -337,7 +337,7 @@ private struct UpdatePageSheet: View {
                     try? context.save()
                     dismiss()
                 }
-                .buttonStyle(QsButtonStyle(kind: .secondary))
+                .buttonStyle(QsButtonStyle(priority: .secondary))
                 Button("Update") {
                     if let page {
                         book.currentPage = max(0, book.pageCount.map { min(page, $0) } ?? page)
@@ -346,7 +346,7 @@ private struct UpdatePageSheet: View {
                     }
                     dismiss()
                 }
-                .buttonStyle(QsButtonStyle(kind: .primary))
+                .buttonStyle(QsButtonStyle(priority: .primary))
             }
             .padding(.horizontal, Space.s20)
             .padding(.top, Space.s16)

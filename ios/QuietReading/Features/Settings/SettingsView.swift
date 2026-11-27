@@ -3,11 +3,25 @@ import SwiftUI
 struct SettingsView: View {
     @AppStorage(ThemeStorage.key) private var chosenTheme: ThemeID = .peachSage
     @Environment(\.theme) private var theme
+    @Environment(\.duoLayout) private var duo
 
     /// Night and High contrast follow the system settings (Dark Mode, Increase Contrast).
     private let pickable: [ThemeID] = [.peachSage, .clayCream, .blushIvory, .lavenderMist]
 
     var body: some View {
+        if duo.mode == .book {
+            // Duo open: settings on the left page, nothing across the fold.
+            HStack(spacing: duo.fold.width) {
+                settings.frame(width: duo.fold.minX)
+                DuoIllustrationPage()
+            }
+            .background(theme.palette.bg.ignoresSafeArea())
+        } else {
+            settings
+        }
+    }
+
+    private var settings: some View {
         NavigationStack {
             List {
                 Section {

@@ -13,9 +13,9 @@ struct LibraryView: View {
             )
         } actions: {
             Button("Add a book", action: onAddBook)
-                .buttonStyle(QsButtonStyle(kind: .primary))
+                .buttonStyle(QsButtonStyle(priority: .primary))
             Button("Import a library") {}
-                .buttonStyle(QsButtonStyle(kind: .outline))
+                .buttonStyle(QsButtonStyle(priority: .outline))
         }
     }
 }
