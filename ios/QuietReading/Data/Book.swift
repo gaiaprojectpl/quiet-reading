@@ -61,6 +61,8 @@ final class Book {
     var moods: [String] = []
     @Relationship(deleteRule: .cascade, inverse: \ReadingSession.book)
     var sessions: [ReadingSession] = []
+    @Relationship(deleteRule: .cascade, inverse: \Quote.book)
+    var quotes: [Quote] = []
 
     init(
         title: String, author: String, isbn: String? = nil, pageCount: Int? = nil,
@@ -152,5 +154,26 @@ nonisolated enum ReadingTime {
         let h = minutes / 60, m = minutes % 60
         let text = h > 0 ? (m > 0 ? "\(h) h \(m) min" : "\(h) h") : "\(max(m, 1)) min"
         return String(localized: "About \(text) left")
+    }
+}
+
+/// A line worth keeping (Flow 9). Read from a page photo on the phone, or typed.
+@Model
+final class Quote {
+    var text: String
+    var page: Int?
+    var mood: String?
+    var showOnWidget: Bool
+    var fromPhoto: Bool
+    var date: Date
+    var book: Book?
+
+    init(text: String, page: Int?, mood: String?, showOnWidget: Bool, fromPhoto: Bool) {
+        self.text = text
+        self.page = page
+        self.mood = mood
+        self.showOnWidget = showOnWidget
+        self.fromPhoto = fromPhoto
+        self.date = .now
     }
 }

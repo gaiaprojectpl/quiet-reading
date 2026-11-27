@@ -76,7 +76,7 @@ struct LibraryView: View {
         // Test builds only: `-qsLibrary detail | move | sort | empty | search`.
         .task {
             switch UserDefaults.standard.string(forKey: "qsLibrary") {
-            case "detail", "move": if let b = books.first(where: { $0.status == .reading }) { open(b) }
+            case "detail", "move", "quotes", "quoteselect", "quotetype": if let b = books.first(where: { $0.status == .reading }) { open(b) }
             case "sort": showFilter = true
             case "empty": shelf = .stopped
             case "search": searching = true; query = "tolkien"

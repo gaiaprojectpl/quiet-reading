@@ -21,6 +21,17 @@ struct BookDetailView: View {
     @State private var removeAfterSheet = false
     @State private var confirmRemove = false
     @State private var editingMoods = false
+    @State private var tab: DetailTab = .progress
+    @State private var addingQuote = false
+    @State private var quoteSource: QuoteSource?
+    @State private var pendingQuoteSource: QuoteSource?
+
+    enum DetailTab: Hashable { case progress, quotes, notes }
+
+    private var notes: [ReadingSession] {
+        book.sessions.filter { !($0.note ?? "").isEmpty }.sorted { $0.date > $1.date }
+    }
+    private var quotes: [Quote] { book.quotes.sorted { $0.date > $1.date } }
 
     /// On the Duo (no bottom tab bar) actions are pinned to the bottom; on iPhone they stay in the card.
     private var pinActions: Bool { duo.mode != .phone }
@@ -30,16 +41,35 @@ struct BookDetailView: View {
             VStack(alignment: .leading, spacing: Space.s16) {
                 topBar
                 header
-                progressCard
-                notesCard
-                infoCard
+                QsSegmented(options: [(DetailTab.progress, String(localized: "Progress")),
+                                      (.quotes, String(localized: "Quotes · \(book.quotes.count)")),
+                                      (.notes, String(localized: "Notes"))],
+                            selection: $tab)
+                Group {
+                    switch tab {
+                    case .progress:
+                        progressCard
+                        notesCard
+                        infoCard
+                    case .quotes: quotesTab
+                    case .notes: notesTab
+                    }
+                }
+                .transition(.opacity)
+                .gentleAnimation(tab)
             }
             .padding(.horizontal, Space.s20)
             .padding(.top, Space.s8)
             .padding(.bottom, Space.s40)
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            if pinActions, hasActions {
+            if pinActions, tab == .quotes {
+                addQuoteButton
+                    .padding(.horizontal, Space.s20)
+                    .padding(.top, Space.s12)
+                    .padding(.bottom, QsLayout.actionsAboveBottomLine)
+                    .background(theme.palette.bg)
+            } else if pinActions, hasActions {
                 actions
                     .padding(.horizontal, Space.s20)
                     .padding(.top, Space.s12)
@@ -61,8 +91,21 @@ struct BookDetailView: View {
             MoveToShelfSheet(book: book, onRemove: { removeAfterSheet = true })
         }
         .sheet(isPresented: $editingMoods) { MoodsSheet(book: book) }
+        .sheet(isPresented: $addingQuote, onDismiss: {
+            if let s = pendingQuoteSource { pendingQuoteSource = nil; quoteSource = s }
+        }) {
+            AddQuoteSheet(onChoose: { pendingQuoteSource = $0 })
+        }
+        .fullScreenCover(item: $quoteSource) { QuoteFlow(book: book, source: $0) }
         #if DEBUG
-        .task { if UserDefaults.standard.string(forKey: "qsLibrary") == "move" { showMove = true } }
+        .task {
+            switch UserDefaults.standard.string(forKey: "qsLibrary") {
+            case "move": showMove = true
+            case "quotes": tab = .quotes
+            case "quoteselect", "quotetype": tab = .quotes; quoteSource = UserDefaults.standard.string(forKey: "qsLibrary") == "quotetype" ? .typed : .photo
+            default: break
+            }
+        }
         #endif
         // Flow 7 › Remove a book
         .alert("Remove “\(book.title)”?", isPresented: $confirmRemove) {
@@ -165,8 +208,17 @@ struct BookDetailView: View {
     }
 
     @ViewBuilder private var notesCard: some View {
-        let notes = book.sessions.filter { !($0.note ?? "").isEmpty }.sorted { $0.date > $1.date }
-        if let latest = notes.first, let text = latest.note {
+        if let quote = quotes.first {
+            card(spacing: Space.s8) {
+                cardHeader(count: quotes.count + notes.count)
+                Text("“\(quote.text)”")
+                    .font(theme.headline(17, relativeTo: .body))
+                    .foregroundStyle(theme.palette.ink)
+                    .lineLimit(4)
+                Text(quoteMeta(quote)).font(.footnote).foregroundStyle(theme.palette.ink2)
+            }
+            .onTapGesture { tab = .quotes }
+        } else if let latest = notes.first, let text = latest.note {
             card(spacing: Space.s8) {
                 HStack(spacing: Space.s8) {
                     Image("qs.quote")
@@ -184,6 +236,92 @@ struct BookDetailView: View {
                 Text("p. \(latest.toPage) · \(latest.date.formatted(.dateTime.day().month(.wide)))")
                     .font(.footnote)
                     .foregroundStyle(theme.palette.ink2)
+            }
+        }
+    }
+
+    private func cardHeader(count: Int) -> some View {
+        HStack(spacing: Space.s8) {
+            Image("qs.quote").resizable().frame(width: Size.iconM, height: Size.iconM)
+                .foregroundStyle(theme.palette.accentInk).accessibilityHidden(true)
+            Text("Notes & quotes · \(count)")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(theme.palette.ink)
+        }
+    }
+
+    /// "p. 98 · Cozy" (+ "from a page photo")
+    private func quoteMeta(_ q: Quote) -> String {
+        var parts: [String] = []
+        if let page = q.page { parts.append(String(localized: "p. \(page)")) }
+        if let mood = q.mood { parts.append(String(localized: String.LocalizationValue(mood))) }
+        if q.fromPhoto { parts.append(String(localized: "from a page photo")) }
+        return parts.joined(separator: " · ")
+    }
+
+    // MARK: Quotes tab (Flow 9 › Step 1)
+
+    @ViewBuilder private var quotesTab: some View {
+        if quotes.isEmpty {
+            // Flow 10 › A3 · Quotes · none yet
+            EmptyStateView(icon: "qs.quote", title: "No quotes yet",
+                           message: "When a line stays with you, save it here with a photo of the page.")
+        } else {
+            ForEach(quotes) { q in
+                let isNew = q.date.timeIntervalSinceNow > -15
+                VStack(alignment: .leading, spacing: Space.s8) {
+                    HStack(alignment: .top, spacing: Space.s8) {
+                        Image("qs.quote").resizable().frame(width: Size.iconS, height: Size.iconS)
+                            .foregroundStyle(theme.palette.accentInk).padding(.top, Space.s2).accessibilityHidden(true)
+                        Text("“\(q.text)”")
+                            .font(theme.headline(15, relativeTo: .body))
+                            .foregroundStyle(theme.palette.ink)
+                    }
+                    Text([quoteMeta(q), isNew ? String(localized: "new") : nil].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · "))
+                        .font(.footnote).foregroundStyle(theme.palette.ink2)
+                }
+                .padding(Space.s16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(isNew ? theme.palette.soft2 : theme.palette.surface,
+                            in: RoundedRectangle(cornerRadius: theme.radii.card, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: theme.radii.card, style: .continuous)
+                    .strokeBorder(theme.palette.line, lineWidth: Size.stroke))
+                .accessibilityElement(children: .combine)
+                .contextMenu {
+                    Button("Delete quote", role: .destructive) { context.delete(q); try? context.save() }
+                }
+                .gentleAppear()
+            }
+        }
+        if !pinActions { addQuoteButton }
+    }
+
+    private var addQuoteButton: some View {
+        Button { addingQuote = true } label: {
+            Label { Text("Add a quote") } icon: { Image("qs.quote").resizable().frame(width: Size.iconM, height: Size.iconM) }
+        }
+        .buttonStyle(QsButtonStyle(priority: .primary))
+    }
+
+    // MARK: Notes tab
+
+    @ViewBuilder private var notesTab: some View {
+        if notes.isEmpty {
+            EmptyStateView(icon: "qs.quote", title: "No notes yet",
+                           message: "Add a short note when you update your page.")
+        } else {
+            ForEach(notes) { n in
+                VStack(alignment: .leading, spacing: Space.s8) {
+                    Text(n.note ?? "").font(.body).foregroundStyle(theme.palette.ink)
+                    Text("p. \(n.toPage) · \(n.date.formatted(.dateTime.day().month(.wide)))")
+                        .font(.footnote).foregroundStyle(theme.palette.ink2)
+                }
+                .padding(Space.s16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(theme.palette.surface, in: RoundedRectangle(cornerRadius: theme.radii.card, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: theme.radii.card, style: .continuous)
+                    .strokeBorder(theme.palette.line, lineWidth: Size.stroke))
+                .accessibilityElement(children: .combine)
             }
         }
     }
