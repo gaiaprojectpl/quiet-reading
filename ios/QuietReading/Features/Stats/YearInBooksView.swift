@@ -86,32 +86,10 @@ struct YearInBooksView: View {
 
     /// Draws the share card once (covers + "Ola read 18 books in 2026").
     private func render() {
-        let card = ShareCard(books: Array(books.prefix(3)), title: name.isEmpty
-            ? String(localized: "I read \(books.count) books in \(String(year))")
-            : String(localized: "\(name) read \(books.count) books in \(String(year))"))
-            .environment(\.theme, theme)
-        let renderer = ImageRenderer(content: card)
-        renderer.scale = displayScale
-        if let ui = renderer.uiImage { shareImage = Image(uiImage: ui) }
-    }
-}
-
-/// The image that gets shared: soft card, three covers, one sentence, the app name.
-private struct ShareCard: View {
-    let books: [Book]
-    let title: String
-    @Environment(\.theme) private var theme
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Space.s12) {
-            HStack(spacing: Space.s8) {
-                ForEach(books) { BookCover(source: .data($0.coverData), title: $0.title, width: Size.coverM - Space.s8) }
-            }
-            Text(title).font(theme.headline(24, relativeTo: .title2)).foregroundStyle(theme.palette.ink)
-            Text("Quiet Reading").font(.caption.weight(.semibold)).foregroundStyle(theme.palette.accentInk)
-        }
-        .padding(Space.s24)
-        .frame(width: 360, alignment: .leading)
-        .background(theme.palette.soft)
+        shareImage = StatsShareCard.image(
+            books: Array(books.suffix(3)),
+            title: name.isEmpty ? String(localized: "I read \(books.count) books in \(String(year))")
+                                : String(localized: "\(name) read \(books.count) books in \(String(year))"),
+            detail: line, theme: theme, scale: displayScale)
     }
 }

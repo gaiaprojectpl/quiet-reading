@@ -25,6 +25,9 @@ struct StatsView: View {
     @State private var updating: Book?
     @State private var finishAfterSheet: Book?
     @State private var finishing: Book?
+    @State private var shareImage: Image?
+    @AppStorage(ProfileKeys.name) private var name = ""
+    @Environment(\.displayScale) private var displayScale
 
     enum Period: Hashable { case week, month, year }
     enum Page: Hashable { case stamps, year(Int), patterns, book(Book) }
@@ -41,16 +44,7 @@ struct StatsView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: Space.s16) {
                     ScreenHeader(title: "Stats") {
-                        if stats.hasAnyData {
-                            Button { path.append(.year(year)) } label: {
-                                Image("qs.share").resizable().frame(width: Size.iconL, height: Size.iconL)
-                                    .foregroundStyle(theme.palette.ink)
-                                    .frame(width: Size.touchIos, height: Size.touchIos)
-                                    .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("Share your year")
-                        }
+                        if stats.hasAnyData { ShareImageButton(image: shareImage, caption: shareTitle) }
                     }
                     if stats.hasAnyData { content } else { empty }
                 }
@@ -80,6 +74,8 @@ struct StatsView: View {
             }
             .fullScreenCover(item: $finishing) { FinishFlow(book: $0) }
             .task(id: stamps.filter(\.earned).map(\.id)) { announceNewStamps() }
+            // The share icon shares what's on screen (week, month or year) as a ready-made image.
+            .task(id: "\(period)-\(year)-\(month)-\(books.count)-\(theme.rawValue)") { renderShare() }
             #if DEBUG
             // Test builds only: `-qsStats stamps | year | patterns | month | week`.
             .task {
@@ -164,6 +160,43 @@ struct StatsView: View {
         }
         .buttonStyle(QsPressStyle())
         .accessibilityHint("See all stamps")
+    }
+
+    // MARK: Share
+
+    private var who: String { name.isEmpty ? String(localized: "I") : name }
+
+    private var shareTitle: String {
+        let s = stats
+        switch period {
+        case .week:
+            let pages = s.thisWeek.map(\.pages).reduce(0, +)
+            return String(localized: "\(who) read \(pages) pages this week")
+        case .month:
+            let n = s.booksFinished(inMonthOf: month).count
+            return String(localized: "\(who) finished \(n) books in \(month.formatted(.dateTime.month(.wide)))")
+        case .year:
+            return String(localized: "\(who) read \(s.finished(in: year).count) books in \(String(year))")
+        }
+    }
+
+    private func renderShare() {
+        let s = stats
+        let books: [Book]
+        let detail: String
+        switch period {
+        case .week:
+            books = currentBook.map { [$0] } ?? []
+            detail = String(localized: "Read on \(s.thisWeek.filter(\.didRead).count) of 7 days")
+        case .month:
+            let finished = s.booksFinished(inMonthOf: month)
+            books = finished.isEmpty ? (currentBook.map { [$0] } ?? []) : Array(finished.suffix(3))
+            detail = String(localized: "\(s.days(inMonthOf: month).map(\.pages).reduce(0, +).formatted()) pages · \(s.days(inMonthOf: month).filter(\.didRead).count) reading days")
+        case .year:
+            books = Array(s.finished(in: year).suffix(3))
+            detail = String(localized: "\(s.pages(in: year).formatted()) pages · \(s.newAuthors(in: year)) new authors")
+        }
+        shareImage = StatsShareCard.image(books: books, title: shareTitle, detail: detail, theme: theme, scale: displayScale)
     }
 
     // MARK: Empty (Flow 8 › No data yet)
