@@ -7,6 +7,7 @@ nonisolated enum OnboardingStorage {
 
 /// Resolves the theme (system dark mode → Night, Increase Contrast → High contrast),
 /// shows Flow 1 on first launch, then the one navigation used everywhere.
+/// On iPhone Duo the layout follows the system column and the fold (see `DuoLayout`).
 struct RootView: View {
     @AppStorage(ThemeStorage.key) private var chosenTheme: ThemeID = .peachSage
     @AppStorage(OnboardingStorage.key) private var onboardingDone = false
@@ -21,12 +22,17 @@ struct RootView: View {
     }
 
     var body: some View {
-        Group {
-            if onboardingDone {
-                MainTabs()
-            } else {
-                OnboardingFlow(onFinish: { onboardingDone = true })
+        DuoLayoutReader { duo in
+            Group {
+                if onboardingDone {
+                    MainTabs()
+                } else {
+                    // iOS already keeps content out of the Duo's system column (trailing safe area).
+                    OnboardingFlow(onFinish: { onboardingDone = true })
+                        .duoTopSpacing(duo)
+                }
             }
+            .background(resolvedTheme.palette.bg.ignoresSafeArea())
         }
         .environment(importSession)
         #if DEBUG
@@ -38,6 +44,7 @@ struct RootView: View {
 }
 
 private struct MainTabs: View {
+    @Environment(\.duoLayout) private var duo
     @State private var tab: AppTab = .home
     @State private var showAdd = false
 
@@ -52,13 +59,47 @@ private struct MainTabs: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            QsTabBar(selection: $tab, onAdd: { showAdd = true })
-        }
+        .modifier(Navigation(duo: duo, tab: $tab, onAdd: { showAdd = true }))
         .sheet(isPresented: $showAdd) {
             AddBookView()
                 .presentationDragIndicator(.visible)
         }
+    }
+
+    /// Bottom tab bar on iPhone and in tabletop; the vertical rail in the system column on Duo.
+    private struct Navigation: ViewModifier {
+        let duo: DuoLayout
+        @Binding var tab: AppTab
+        let onAdd: () -> Void
+
+        func body(content: Content) -> some View {
+            if duo.usesRail {
+                // Content stays in the safe area; the rail sits in the system column (the trailing safe area).
+                content
+                    .duoTopSpacing(duo)
+                    .overlay(alignment: .bottomTrailing) {
+                        // The content ends where the system column starts; shift the rail one column
+                        // to the right so it sits inside the column, 24 pt above the bottom edge.
+                        QsTabRail(selection: $tab, onAdd: onAdd)
+                            .frame(width: duo.column)
+                            .offset(x: duo.column)
+                            .padding(.bottom, Space.s24)
+                            .ignoresSafeArea(edges: .bottom)
+                    }
+            } else {
+                content.safeAreaInset(edge: .bottom, spacing: 0) {
+                    QsTabBar(selection: $tab, onAdd: onAdd)
+                }
+            }
+        }
+    }
+}
+
+private extension View {
+    /// On Duo the clock lives in the side column, so the top safe area is 0.
+    /// Give titles the same room as below an iPhone status bar so they don't hug the corner.
+    func duoTopSpacing(_ duo: DuoLayout) -> some View {
+        padding(.top, duo.mode == .phone || duo.mode == .tabletop ? 0 : Space.s48)
     }
 }
 

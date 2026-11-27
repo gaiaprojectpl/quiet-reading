@@ -8,6 +8,7 @@ struct HomeView: View {
     @Environment(\.theme) private var theme
     @Query(sort: \Book.lastUpdated, order: .reverse) private var books: [Book]
     @State private var updating: Book?
+    @Environment(\.duoLayout) private var duo
 
     private var current: Book? { books.first { $0.status == .reading } }
     private var upNext: [Book] { Array(books.filter { $0.status == .toRead }.prefix(10)) }
@@ -25,28 +26,12 @@ struct HomeView: View {
             }
         } else {
             NavigationStack {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: Space.s20) {
-                        Text(Date.now.formatted(.dateTime.weekday(.wide).day().month(.wide)).uppercased())
-                            .font(.caption.weight(.semibold))
-                            .tracking(0.72)
-                            .foregroundStyle(theme.palette.ink2)
-                        Text("Reading now")
-                            .font(theme.headline(32, relativeTo: .largeTitle))
-                            .foregroundStyle(theme.palette.ink)
-                            .accessibilityAddTraits(.isHeader)
-                        if let current {
-                            CurrentBookCard(book: current, onUpdate: { updating = current })
-                        } else {
-                            InfoBanner(message: "No book in progress. Pick one from Up next or your library.")
-                        }
-                        if !upNext.isEmpty {
-                            upNextSection
-                        }
+                Group {
+                    switch duo.mode {
+                    case .book: bookLayout
+                    case .tabletop: tabletopLayout
+                    case .phone, .single: phoneLayout
                     }
-                    .padding(.horizontal, Space.s20)
-                    .padding(.top, Space.s16)
-                    .padding(.bottom, Space.s40)
                 }
                 .background(theme.palette.bg.ignoresSafeArea())
                 .toolbar(.hidden, for: .navigationBar)
@@ -57,22 +42,131 @@ struct HomeView: View {
         }
     }
 
+    // MARK: Layouts (Figma Flow 6b › Home)
+
+    /// iPhone, and Duo closed: one column with Up next as cover tiles.
+    private var phoneLayout: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: Space.s20) {
+                header
+                currentSection
+                if !upNext.isEmpty { upNextSection }
+            }
+            .padding(.horizontal, Space.s20)
+            .padding(.top, Space.s16)
+            .padding(.bottom, Space.s40)
+        }
+    }
+
+    /// Duo open like a book: Reading now on the left page, Up next on the right page.
+    private var bookLayout: some View {
+        HStack(alignment: .top, spacing: duo.fold.width) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: Space.s20) {
+                    header
+                    currentSection
+                }
+                .padding(Space.s20)
+            }
+            .frame(width: duo.fold.minX)
+            ScrollView {
+                if !upNext.isEmpty { upNextList }
+            }
+            .padding(.top, Space.s20)
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    /// Duo half-folded: the book you're reading on top, Up next below the fold.
+    private var tabletopLayout: some View {
+        VStack(spacing: duo.fold.height) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: Space.s16) {
+                    Text("Reading now")
+                        .font(theme.headline(28, relativeTo: .title))
+                        .foregroundStyle(theme.palette.ink)
+                        .accessibilityAddTraits(.isHeader)
+                    currentSection
+                }
+                .padding(.horizontal, Space.s20)
+                .padding(.top, Space.s48)
+                .padding(.bottom, Space.s20)
+            }
+            .frame(height: duo.fold.minY)
+            ScrollView {
+                if !upNext.isEmpty { upNextList }
+            }
+        }
+        .ignoresSafeArea(edges: .top)
+    }
+
+    // MARK: Sections
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: Space.s20) {
+            Text(Date.now.formatted(.dateTime.weekday(.wide).day().month(.wide)).uppercased())
+                .font(.caption.weight(.semibold))
+                .tracking(0.72)
+                .foregroundStyle(theme.palette.ink2)
+            Text("Reading now")
+                .font(theme.headline(32, relativeTo: .largeTitle))
+                .foregroundStyle(theme.palette.ink)
+                .accessibilityAddTraits(.isHeader)
+        }
+    }
+
+    @ViewBuilder private var currentSection: some View {
+        if let current {
+            CurrentBookCard(book: current, onUpdate: { updating = current })
+        } else {
+            InfoBanner(message: "No book in progress. Pick one from Up next or your library.")
+        }
+    }
+
+    /// Up next as rows (Duo open and tabletop): small cover, title, author · pages.
+    private var upNextList: some View {
+        VStack(alignment: .leading, spacing: Space.s16) {
+            upNextHeader
+            ForEach(upNext) { book in
+                HStack(spacing: Space.s16) {
+                    BookCover(source: .data(book.coverData), title: book.title, width: Space.s40)
+                    VStack(alignment: .leading, spacing: Space.s2) {
+                        Text(book.title)
+                            .font(theme.headline(17, relativeTo: .body))
+                            .foregroundStyle(theme.palette.ink)
+                        Text(book.pageCount.map { "\(book.author) · \($0) pages" } ?? book.author)
+                            .font(.footnote)
+                            .foregroundStyle(theme.palette.ink2)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .accessibilityElement(children: .combine)
+            }
+        }
+        .padding(.horizontal, Space.s20)
+        .padding(.bottom, Space.s24)
+    }
+
+    private var upNextHeader: some View {
+        HStack {
+            Text("Up next")
+                .font(theme.headline(20, relativeTo: .title3))
+                .foregroundStyle(theme.palette.ink)
+                .accessibilityAddTraits(.isHeader)
+            Spacer()
+            Button("See all", action: onSeeAll)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(theme.palette.accentInk)
+                .frame(minHeight: Size.touchIos)
+        }
+    }
+
     /// Figma: Books › Book grid cell (105 pt).
     private static let tileWidth: CGFloat = 105
 
     private var upNextSection: some View {
         VStack(alignment: .leading, spacing: Space.s20) {
-            HStack {
-                Text("Up next")
-                    .font(theme.headline(20, relativeTo: .title3))
-                    .foregroundStyle(theme.palette.ink)
-                    .accessibilityAddTraits(.isHeader)
-                Spacer()
-                Button("See all", action: onSeeAll)
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(theme.palette.accentInk)
-                    .frame(minHeight: Size.touchIos)
-            }
+            upNextHeader
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(alignment: .top, spacing: Space.s16) {
                     ForEach(upNext) { book in

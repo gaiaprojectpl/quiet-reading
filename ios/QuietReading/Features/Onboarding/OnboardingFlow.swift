@@ -71,11 +71,32 @@ struct OnboardingFlow: View {
 struct OnboardingPage<Content: View, Actions: View>: View {
     var spacing: CGFloat = Space.s20
     var showsBack = true
+    var hasActions = true
     @ViewBuilder var content: Content
     @ViewBuilder var actions: Actions
     @Environment(\.theme) private var theme
+    @Environment(\.duoLayout) private var duo
 
     var body: some View {
+        if duo.mode == .book {
+            // Duo open: a calm illustration on the left page, the screen itself on the right page.
+            HStack(spacing: duo.fold.width) {
+                DuoIllustrationPage()
+                    .frame(width: duo.fold.minX)
+                page
+            }
+            .background(theme.palette.bg.ignoresSafeArea())
+            .toolbar(.hidden, for: .navigationBar)
+        } else {
+            page
+        }
+    }
+
+    /// Button placement rules (Figma, 27 Nov): bottom of the action group 16 pt above the safe area
+    /// (50 pt from the edge on iPhone). The Duo has no home indicator area, so keep 48 pt there.
+    private var actionsBottom: CGFloat { duo.mode == .phone ? Space.s16 : Space.s48 }
+
+    private var page: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: spacing) { content }
                 .padding(.horizontal, Space.s20)
@@ -85,11 +106,13 @@ struct OnboardingPage<Content: View, Actions: View>: View {
         .scrollBounceBehavior(.basedOnSize)
         .background(theme.palette.bg.ignoresSafeArea())
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            VStack(spacing: Space.s12) { actions }
-                .padding(.horizontal, Space.s20)
-                .padding(.top, Space.s12)
-                .padding(.bottom, Space.s8)
-                .background(theme.palette.bg)
+            if hasActions {
+                VStack(spacing: Space.s12) { actions }
+                    .padding(.horizontal, Space.s20)
+                    .padding(.top, Space.s12)
+                    .padding(.bottom, actionsBottom)
+                    .background(theme.palette.bg)
+            }
         }
         .safeAreaInset(edge: .top, spacing: 0) {
             if showsBack {
@@ -104,7 +127,21 @@ struct OnboardingPage<Content: View, Actions: View>: View {
 
 extension OnboardingPage where Actions == EmptyView {
     init(spacing: CGFloat = Space.s20, showsBack: Bool = true, @ViewBuilder content: () -> Content) {
-        self.init(spacing: spacing, showsBack: showsBack, content: content, actions: { EmptyView() })
+        self.init(spacing: spacing, showsBack: showsBack, hasActions: false, content: content, actions: { EmptyView() })
+    }
+}
+
+/// Left page on the open Duo: the cover fan on a soft card (Figma Flow 6b › Onboarding).
+struct DuoIllustrationPage: View {
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        CoverFan()
+            .padding(Space.s20)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(theme.palette.soft, in: RoundedRectangle(cornerRadius: theme.radii.card, style: .continuous))
+            .padding(Space.s20)
+            .accessibilityHidden(true)
     }
 }
 
@@ -129,7 +166,54 @@ struct LandingView: View {
     let onHaveAccount: () -> Void
     @Environment(\.theme) private var theme
 
+    @Environment(\.duoLayout) private var duo
+
     var body: some View {
+        if duo.mode == .book {
+            bookLayout
+        } else {
+            singleLayout
+        }
+    }
+
+    /// Duo open (Figma Flow 6b › Onboarding): illustration on the left page, words and buttons on the right.
+    private var bookLayout: some View {
+        HStack(spacing: duo.fold.width) {
+            DuoIllustrationPage()
+                .frame(width: duo.fold.minX)
+            VStack(alignment: .leading, spacing: Space.s16) {
+                QsLogo()
+                Spacer(minLength: Space.s16)
+                Text("Your reading life, quietly on your home screen.")
+                    .font(theme.headline(30, relativeTo: .title))
+                    .foregroundStyle(theme.palette.ink)
+                    .accessibilityAddTraits(.isHeader)
+                Text("Add a book with one photo. Update in one tap. No streaks, no noise.")
+                    .font(.body)
+                    .foregroundStyle(theme.palette.ink2)
+                Spacer(minLength: Space.s16)
+                actions
+            }
+            .padding(.horizontal, Space.s20)
+            .padding(.top, Space.s20)
+            .padding(.bottom, Space.s48) // button placement rules: clear of the edge on Duo
+        }
+        .background(theme.palette.bg.ignoresSafeArea())
+        .toolbar(.hidden, for: .navigationBar)
+    }
+
+    @ViewBuilder private var actions: some View {
+        Button("Get started", action: onGetStarted)
+            .buttonStyle(QsButtonStyle(kind: .primary))
+        Button("I already have an account", action: onHaveAccount)
+            .buttonStyle(QsButtonStyle(kind: .secondary))
+        Text("Free to use · Plus themes are optional")
+            .font(.footnote)
+            .foregroundStyle(theme.palette.ink2)
+            .frame(maxWidth: .infinity)
+    }
+
+    private var singleLayout: some View {
         OnboardingPage(spacing: Space.s16, showsBack: false) {
             QsLogo()
             CoverFan()
@@ -141,14 +225,7 @@ struct LandingView: View {
                 .font(.body)
                 .foregroundStyle(theme.palette.ink2)
         } actions: {
-            Button("Get started", action: onGetStarted)
-                .buttonStyle(QsButtonStyle(kind: .primary))
-            Button("I already have an account", action: onHaveAccount)
-                .buttonStyle(QsButtonStyle(kind: .secondary))
-            Text("Free to use · Plus themes are optional")
-                .font(.footnote)
-                .foregroundStyle(theme.palette.ink2)
-                .frame(maxWidth: .infinity)
+            actions
         }
         .toolbar(.hidden, for: .navigationBar)
     }
@@ -156,7 +233,7 @@ struct LandingView: View {
 
 /// The four sample covers fanned over a soft circle (Figma: Landing › Covers, 353 × 300).
 /// Offsets and angles are illustration geometry taken from the design.
-private struct CoverFan: View {
+struct CoverFan: View {
     @Environment(\.theme) private var theme
     private let covers: [(name: String, x: CGFloat, y: CGFloat, angle: Double)] = [
         ("cover.quiet-orchard", -115, 12, 8),
