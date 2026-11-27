@@ -56,6 +56,29 @@ sw += swift_enum("Space", T["space"]) + [""] + swift_enum("Size", T["size"]) + [
 sw += ["/// Durations in seconds.", "nonisolated public enum Motion {"] + [f"    public static let {k}: Double = {v/1000}" for k, v in T["motion"].items()] + ["}", ""]
 sw += swift_enum("Opacity", T["opacity"], "Double")
 
+# Plus widget styles (Soft / Colourful / Modern). iOS only for now; Android widgets come later.
+ws = {k: v for k, v in T.get("widgetStyles", {}).items() if not k.startswith("_")}
+if ws:
+    def col(h):
+        h = hx(h)
+        a = int(h[6:8], 16) / 255 if len(h) == 8 else 1
+        return f"Color(hex: 0x{h[:6]}).opacity({a:.2f})" if a < 1 else f"Color(hex: 0x{h[:6]})"
+    sw += ["", "/// Plus widget styles (Figma › Widgets Final). Soft = pastel tints, Colourful = gradients, Modern = graphite.",
+           "nonisolated public enum WidgetStyleID: String, CaseIterable, Codable, Sendable {"]
+    sw += [f"    case {k} // {v['name']}" for k, v in ws.items()]
+    sw += ["", "    public var displayName: String {", "        switch self {"]
+    sw += [f'        case .{k}: "{v["name"]}"' for k, v in ws.items()]
+    sw += ["        }", "    }", "", "    public var family: String {", "        switch self {"]
+    sw += [f'        case .{k}: "{v["family"]}"' for k, v in ws.items()]
+    sw += ["        }", "    }", "", "    public var palette: WidgetPalette {", "        switch self {"]
+    for k, v in ws.items():
+        bg = ", ".join(col(c) for c in v["background"])
+        sw.append(f"        case .{k}: WidgetPalette(background: [{bg}], ink: {col(v['ink'])}, ink2: {col(v['ink2'])}, accent: {col(v['accent'])}, track: {col(v['track'])}, button: {col(v['button'])}, buttonInk: {col(v['buttonInk'])}, hairline: {col(v['hairline'])})")
+    sw += ["        }", "    }", "}", "",
+           "nonisolated public struct WidgetPalette: Sendable {",
+           "    public let background: [Color]", "    public let ink: Color", "    public let ink2: Color", "    public let accent: Color",
+           "    public let track: Color", "    public let button: Color", "    public let buttonInk: Color", "    public let hairline: Color", "}"]
+
 ios = ROOT / "ios/Shared/Tokens.generated.swift"
 ios.parent.mkdir(parents=True, exist_ok=True); ios.write_text("\n".join(sw) + "\n")
 

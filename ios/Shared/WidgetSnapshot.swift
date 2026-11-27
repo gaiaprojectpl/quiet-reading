@@ -14,6 +14,8 @@ nonisolated struct WidgetSnapshot: Codable, Sendable {
         let minutesLeft: Int?
         /// File name of a small cover JPEG in the App Group's covers folder.
         let coverFile: String?
+        /// "Cover tone" colour (RRGGBB): the cover's own colour, deepened until white text reads at 4.5:1 or more.
+        var coverTone: String? = nil
 
         var progress: Double? {
             guard let pageCount, pageCount > 0 else { return nil }
@@ -21,8 +23,16 @@ nonisolated struct WidgetSnapshot: Codable, Sendable {
         }
     }
 
+    struct QuoteItem: Codable, Sendable, Hashable {
+        let text: String
+        let book: String
+        let page: Int?
+    }
+
     var current: BookItem?
     var upNext: [BookItem] = []
+    /// Quotes chosen for widgets (or the latest ones); the Quote widget shows one a day.
+    var quotes: [QuoteItem] = []
     var goal = 0
     var finishedThisYear = 0
     var year = Calendar.current.component(.year, from: .now)
@@ -63,7 +73,11 @@ nonisolated struct WidgetSnapshot: Codable, Sendable {
     static let preview = WidgetSnapshot(
         current: BookItem(id: "preview", title: "Anne of Green Gables", author: "L. M. Montgomery",
                           currentPage: 142, pageCount: 310, minutesLeft: 200, coverFile: nil),
-        goal: 30, finishedThisYear: 18, weekPages: [24, 0, 41, 18, 49, 0, 32])
+        upNext: [BookItem(id: "p1", title: "The Secret Garden", author: "Frances Hodgson Burnett", currentPage: 0, pageCount: 331, minutesLeft: nil, coverFile: nil),
+                 BookItem(id: "p2", title: "Pride and Prejudice", author: "Jane Austen", currentPage: 0, pageCount: 432, minutesLeft: nil, coverFile: nil),
+                 BookItem(id: "p3", title: "The Great Gatsby", author: "F. Scott Fitzgerald", currentPage: 0, pageCount: 180, minutesLeft: nil, coverFile: nil)],
+        quotes: [QuoteItem(text: "Isn’t it nice to think that tomorrow is a new day with no mistakes in it yet?", book: "Anne of Green Gables", page: 98)],
+        goal: 30, finishedThisYear: 18, isPlus: true, weekPages: [24, 0, 41, 18, 49, 0, 32])
 }
 
 /// Deep links the widgets open: `quietreading://book/<id>`, `quietreading://add`.
@@ -71,6 +85,7 @@ nonisolated enum WidgetLink {
     static func book(_ id: String) -> URL { URL(string: "quietreading://book/\(id)")! }
     static let add = URL(string: "quietreading://add")!
     static let stats = URL(string: "quietreading://stats")!
+    static let plus = URL(string: "quietreading://plus")!
 }
 
 /// "+" / "Update" on a widget: opens the app straight into the page update (progress is always typed).

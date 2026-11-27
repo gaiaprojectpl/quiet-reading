@@ -2,11 +2,18 @@ import WidgetKit
 import SwiftUI
 
 /// Free · Small · Goal: the yearly goal ring with a number (never colour alone). "No rush."
+/// Plus readers can pick a Soft tint; without Plus a Soft choice quietly shows the app theme.
 struct GoalWidget: Widget {
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "Goal", provider: SnapshotProvider()) { entry in
-            ThemedWidget(snapshot: entry.snapshot) { GoalView(snapshot: entry.snapshot) }
-                .widgetURL(WidgetLink.stats)
+        AppIntentConfiguration(kind: "Goal", intent: GoalStyleIntent.self, provider: StyledProvider<GoalStyleIntent>()) { entry in
+            Group {
+                if let style = entry.configuration.style.token, entry.snapshot.isPlus {
+                    StyledGoalView(snapshot: entry.snapshot, style: style)
+                } else {
+                    ThemedWidget(snapshot: entry.snapshot) { GoalView(snapshot: entry.snapshot) }
+                }
+            }
+            .widgetURL(WidgetLink.stats)
         }
         .configurationDisplayName("Reading goal")
         .description("Books finished this year. Goals are optional and never shame.")
@@ -57,4 +64,4 @@ private struct GoalView: View {
     }
 }
 
-#Preview(as: .systemSmall) { GoalWidget() } timeline: { SnapshotEntry(date: .now, snapshot: .preview) }
+#Preview(as: .systemSmall) { GoalWidget() } timeline: { StyledEntry(date: .now, snapshot: .preview, configuration: GoalStyleIntent()) }

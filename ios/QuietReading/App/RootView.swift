@@ -43,7 +43,8 @@ struct RootView: View {
         let latest = allBooks.map(\.lastUpdated).max()?.timeIntervalSince1970 ?? 0
         let pages = allBooks.reduce(0) { $0 + $1.currentPage }
         let covers = allBooks.filter { $0.coverData != nil }.count
-        return "\(allBooks.count)-\(latest)-\(pages)-\(covers)-\(goal)-\(chosenTheme.rawValue)-\(forceHighContrast)-\(plus.isUnlocked)"
+        let quotes = allBooks.reduce(0) { $0 + $1.quotes.count + $1.quotes.filter(\.showOnWidget).count * 1000 }
+        return "\(allBooks.count)-\(latest)-\(pages)-\(covers)-\(quotes)-\(goal)-\(chosenTheme.rawValue)-\(forceHighContrast)-\(plus.isUnlocked)"
     }
 
     var body: some View {
@@ -133,6 +134,7 @@ private struct MainTabs: View {
         .onChange(of: router.openBookID) { _, id in if id != nil { tab = .home } }
         .onChange(of: router.openAdd) { _, open in if open { router.openAdd = false; showAdd = true } }
         .onChange(of: router.openStats) { _, open in if open { router.openStats = false; tab = .stats } }
+        .onChange(of: router.openPlus) { _, open in if open { router.openPlus = false; plus.showPaywall = true } }
         .modifier(Navigation(duo: duo, tab: $tab, onAdd: { showAdd = true }))
         .sheet(isPresented: $showAdd, onDismiss: {
             if let mode = pendingAdd { pendingAdd = nil; addFlow = AddFlowItem(mode: mode) }

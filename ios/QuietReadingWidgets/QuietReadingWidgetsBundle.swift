@@ -3,6 +3,7 @@ import SwiftUI
 
 /// Quiet Reading widgets (Figma › 🧱 Components › Widgets Final, 177:16015).
 /// Free: Reading now (small, medium, Lock Screen, StandBy) and the goal ring, in the app theme.
+/// Plus: Soft / Colourful styles with Large Up next, This week (Graphite), Quote, Soft goal.
 @main
 struct QuietReadingWidgetsBundle: WidgetBundle {
     init() { QsFonts.register() }
@@ -10,6 +11,9 @@ struct QuietReadingWidgetsBundle: WidgetBundle {
     var body: some Widget {
         ReadingNowWidget()
         GoalWidget()
+        StyledReadingWidget()
+        ThisWeekWidget()
+        QuoteWidget()
     }
 }
 

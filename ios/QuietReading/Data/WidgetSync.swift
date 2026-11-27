@@ -2,6 +2,7 @@ import SwiftUI
 import SwiftData
 import WidgetKit
 import CryptoKit
+import CoreImage
 
 /// Writes what the widgets show (WidgetSnapshot + small covers) into the App Group,
 /// then asks WidgetKit to redraw. Called whenever books, the goal or the theme change.
@@ -17,12 +18,14 @@ enum WidgetSync {
             let file = writeCover(b.coverData, id: id)
             if let file { keep.insert(file) }
             return .init(id: id, title: b.title, author: b.author, currentPage: b.currentPage,
-                         pageCount: b.pageCount, minutesLeft: b.minutesLeft(), coverFile: file)
+                         pageCount: b.pageCount, minutesLeft: b.minutesLeft(), coverFile: file,
+                         coverTone: CoverTone.hex(b.coverData))
         }
 
         let snapshot = WidgetSnapshot(
             current: reading.first.map(item),
             upNext: upNext.map(item),
+            quotes: quotes(books),
             goal: goal,
             finishedThisYear: stats.finished(in: stats.currentYear).count,
             year: stats.currentYear,
@@ -33,6 +36,13 @@ enum WidgetSync {
         snapshot.save()
         cleanCovers(keeping: keep)
         WidgetCenter.shared.reloadAllTimelines()
+    }
+
+    /// Quotes marked "show on widget", or the latest ones if none are marked.
+    private static func quotes(_ books: [Book]) -> [WidgetSnapshot.QuoteItem] {
+        let all = books.flatMap { b in b.quotes.map { (q: $0, book: b) } }.sorted { $0.q.date > $1.q.date }
+        let chosen = all.filter { $0.q.showOnWidget }
+        return (chosen.isEmpty ? all : chosen).prefix(10).map { .init(text: $0.q.text, book: $0.book.title, page: $0.q.page) }
     }
 
     /// The book a widget link points to.
@@ -72,6 +82,30 @@ enum WidgetSync {
     }
 }
 
+/// "Cover tone": the cover's average colour, deepened until white text reaches 6:1 on it
+/// (so the slightly softer secondary text still passes 4.5:1). Cached per cover.
+enum CoverTone {
+    private static var cache: [Int: String] = [:]
+    private static let context = CIContext(options: [.workingColorSpace: NSNull()])
+
+    static func hex(_ data: Data?) -> String? {
+        guard let data else { return nil }
+        if let hit = cache[data.hashValue] { return hit }
+        guard let image = CIImage(data: data),
+              let filter = CIFilter(name: "CIAreaAverage", parameters: [kCIInputImageKey: image, kCIInputExtentKey: CIVector(cgRect: image.extent)]),
+              let out = filter.outputImage else { return nil }
+        var px = [UInt8](repeating: 0, count: 4)
+        context.render(out, toBitmap: &px, rowBytes: 4, bounds: CGRect(x: 0, y: 0, width: 1, height: 1), format: .RGBA8, colorSpace: CGColorSpace(name: CGColorSpace.sRGB))
+        var (r, g, b) = (Double(px[0]) / 255, Double(px[1]) / 255, Double(px[2]) / 255)
+        func lum(_ c: Double) -> Double { c <= 0.03928 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4) }
+        func contrastWithWhite() -> Double { 1.05 / (0.2126 * lum(r) + 0.7152 * lum(g) + 0.0722 * lum(b) + 0.05) }
+        while contrastWithWhite() < 6 { r *= 0.94; g *= 0.94; b *= 0.94 }
+        let hex = String(format: "%02X%02X%02X", Int(r * 255), Int(g * 255), Int(b * 255))
+        cache[data.hashValue] = hex
+        return hex
+    }
+}
+
 /// Where a widget tap should take the reader (Home's Update sheet or a book's details).
 @Observable
 final class WidgetRouter {
@@ -79,6 +113,7 @@ final class WidgetRouter {
     var openBookID: String?
     var openAdd = false
     var openStats = false
+    var openPlus = false
 
     func handle(_ url: URL) {
         guard url.scheme == "quietreading" else { return }
@@ -86,6 +121,7 @@ final class WidgetRouter {
         case "book": openBookID = url.lastPathComponent
         case "add": openAdd = true
         case "stats": openStats = true
+        case "plus": openPlus = true
         default: break
         }
     }

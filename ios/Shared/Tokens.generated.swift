@@ -169,3 +169,61 @@ nonisolated public enum Opacity {
     public static let scrim: Double = 0.4
     public static let pressed: Double = 0.12
 }
+
+/// Plus widget styles (Figma › Widgets Final). Soft = pastel tints, Colourful = gradients, Modern = graphite.
+nonisolated public enum WidgetStyleID: String, CaseIterable, Codable, Sendable {
+    case blush // Blush
+    case lilac // Lilac
+    case butter // Butter
+    case sageMist // Sage mist
+    case sunset // Sunset
+    case pop // Pop
+    case graphite // Graphite
+
+    public var displayName: String {
+        switch self {
+        case .blush: "Blush"
+        case .lilac: "Lilac"
+        case .butter: "Butter"
+        case .sageMist: "Sage mist"
+        case .sunset: "Sunset"
+        case .pop: "Pop"
+        case .graphite: "Graphite"
+        }
+    }
+
+    public var family: String {
+        switch self {
+        case .blush: "soft"
+        case .lilac: "soft"
+        case .butter: "soft"
+        case .sageMist: "soft"
+        case .sunset: "colourful"
+        case .pop: "colourful"
+        case .graphite: "modern"
+        }
+    }
+
+    public var palette: WidgetPalette {
+        switch self {
+        case .blush: WidgetPalette(background: [Color(hex: 0xFCF1EE), Color(hex: 0xF3DADB)], ink: Color(hex: 0x4B3540), ink2: Color(hex: 0x755D65), accent: Color(hex: 0xD39AA4), track: Color(hex: 0xFFFFFF).opacity(0.75), button: Color(hex: 0xFFFFFF).opacity(0.70), buttonInk: Color(hex: 0x4B3540), hairline: Color(hex: 0xFFFFFF).opacity(0.60))
+        case .lilac: WidgetPalette(background: [Color(hex: 0xF5F1FA), Color(hex: 0xE3DAF0)], ink: Color(hex: 0x3F3550), ink2: Color(hex: 0x675D77), accent: Color(hex: 0xA893CB), track: Color(hex: 0xFFFFFF).opacity(0.75), button: Color(hex: 0xFFFFFF).opacity(0.70), buttonInk: Color(hex: 0x3F3550), hairline: Color(hex: 0xFFFFFF).opacity(0.60))
+        case .butter: WidgetPalette(background: [Color(hex: 0xFDF8EC), Color(hex: 0xF4E8C8)], ink: Color(hex: 0x4A3F2C), ink2: Color(hex: 0x74674E), accent: Color(hex: 0xD3B26A), track: Color(hex: 0xFFFFFF).opacity(0.75), button: Color(hex: 0xFFFFFF).opacity(0.70), buttonInk: Color(hex: 0x4A3F2C), hairline: Color(hex: 0xFFFFFF).opacity(0.60))
+        case .sageMist: WidgetPalette(background: [Color(hex: 0xF3F7F1), Color(hex: 0xDDE8DA)], ink: Color(hex: 0x33423A), ink2: Color(hex: 0x5B6A62), accent: Color(hex: 0x8FAF98), track: Color(hex: 0xFFFFFF).opacity(0.75), button: Color(hex: 0xFFFFFF).opacity(0.70), buttonInk: Color(hex: 0x33423A), hairline: Color(hex: 0xFFFFFF).opacity(0.60))
+        case .sunset: WidgetPalette(background: [Color(hex: 0xFFC3A6), Color(hex: 0xF59AB4), Color(hex: 0xB9A2E0)], ink: Color(hex: 0x3A1F33), ink2: Color(hex: 0x3A1F33), accent: Color(hex: 0x3A1F33), track: Color(hex: 0xFFFFFF).opacity(0.40), button: Color(hex: 0x3A1F33), buttonInk: Color(hex: 0xFFFFFF), hairline: Color(hex: 0xFFFFFF).opacity(0.00))
+        case .pop: WidgetPalette(background: [Color(hex: 0xFFE18A), Color(hex: 0xFFB38A), Color(hex: 0xFF8FA3)], ink: Color(hex: 0x3B2318), ink2: Color(hex: 0x3B2318), accent: Color(hex: 0x3B2318), track: Color(hex: 0xFFFFFF).opacity(0.40), button: Color(hex: 0x3B2318), buttonInk: Color(hex: 0xFFFFFF), hairline: Color(hex: 0xFFFFFF).opacity(0.00))
+        case .graphite: WidgetPalette(background: [Color(hex: 0x202022), Color(hex: 0x202022)], ink: Color(hex: 0xF3F1EE), ink2: Color(hex: 0xA3A09B), accent: Color(hex: 0xF3F1EE), track: Color(hex: 0xF3F1EE).opacity(0.28), button: Color(hex: 0xF3F1EE), buttonInk: Color(hex: 0x202022), hairline: Color(hex: 0xFFFFFF).opacity(0.12))
+        }
+    }
+}
+
+nonisolated public struct WidgetPalette: Sendable {
+    public let background: [Color]
+    public let ink: Color
+    public let ink2: Color
+    public let accent: Color
+    public let track: Color
+    public let button: Color
+    public let buttonInk: Color
+    public let hairline: Color
+}
