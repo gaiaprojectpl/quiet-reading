@@ -24,6 +24,11 @@ struct HomeView: View {
         #endif
         return books.first { $0.status == .reading }
     }
+    /// Everyone reads more than one book sometimes: the rest of the Reading shelf, most recent first.
+    private var alsoReading: [Book] {
+        guard let current else { return [] }
+        return books.filter { $0.status == .reading && $0.persistentModelID != current.persistentModelID }
+    }
     private var upNext: [Book] { Array(books.filter { $0.status == .toRead }.prefix(10)) }
 
     var body: some View {
@@ -92,6 +97,7 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: Space.s20) {
                 header
                 currentSection
+                if !alsoReading.isEmpty { alsoReadingSection }
                 if !upNext.isEmpty { upNextSection }
             }
             .padding(.horizontal, Space.s20)
@@ -108,6 +114,7 @@ struct HomeView: View {
                 VStack(alignment: .leading, spacing: Space.s20) {
                     header
                     currentSection
+                    if !alsoReading.isEmpty { alsoReadingSection }
                 }
                 .padding(Space.s20)
             }
@@ -131,6 +138,7 @@ struct HomeView: View {
                         .foregroundStyle(theme.palette.ink)
                         .accessibilityAddTraits(.isHeader)
                     currentSection
+                    if !alsoReading.isEmpty { alsoReadingSection }
                 }
                 .padding(.horizontal, Space.s20)
                 .padding(.top, Space.s48)
@@ -180,6 +188,21 @@ struct HomeView: View {
             CurrentBookCard(book: current, onUpdate: { updating = current }, onFinish: { finishing = current }, showsActions: !pinActions)
         } else {
             NothingInProgress(hasWantToRead: !upNext.isEmpty, onAddBook: onAddBook, onChoose: { choosingNext = true })
+        }
+    }
+
+    /// "Also reading": the other books in progress, each with its own Update.
+    private var alsoReadingSection: some View {
+        VStack(alignment: .leading, spacing: Space.s12) {
+            Text("Also reading")
+                .font(theme.headline(20, relativeTo: .title3))
+                .foregroundStyle(theme.palette.ink)
+                .accessibilityAddTraits(.isHeader)
+            QsListCard {
+                ForEach(alsoReading) { book in
+                    AlsoReadingRow(book: book, onUpdate: { updating = book })
+                }
+            }
         }
     }
 
@@ -252,6 +275,51 @@ struct HomeView: View {
                 .padding(.vertical, Space.s4) // room for the cover shadow
             }
         }
+    }
+}
+
+/// One more book in progress: cover, title, progress, and its own Update. Tap the row for details.
+private struct AlsoReadingRow: View {
+    let book: Book
+    let onUpdate: () -> Void
+    @Environment(\.theme) private var theme
+
+    private var progressLine: String {
+        if let pages = book.pageCount, book.currentPage > 0 {
+            return String(localized: "p. \(book.currentPage) of \(pages)")
+        }
+        return book.currentPage > 0 ? String(localized: "p. \(book.currentPage)") : String(localized: "Not started")
+    }
+
+    var body: some View {
+        HStack(spacing: Space.s12) {
+            NavigationLink(value: book) {
+                HStack(spacing: Space.s12) {
+                    BookCover(source: .data(book.coverData), title: book.title, width: Space.s40)
+                    VStack(alignment: .leading, spacing: Space.s4) {
+                        Text(book.title)
+                            .font(theme.headline(17, relativeTo: .body))
+                            .foregroundStyle(theme.palette.ink)
+                            .lineLimit(2)
+                        if let progress = book.progress, book.currentPage > 0 {
+                            QsProgressBar(value: progress, size: .s)
+                        }
+                        Text(progressLine).font(.footnote).foregroundStyle(theme.palette.ink2)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(QsPressStyle())
+            .accessibilityElement(children: .combine)
+            .accessibilityHint("Open the book")
+            Button("Update", action: onUpdate)
+                .buttonStyle(QsButtonStyle(priority: .secondary, size: .small))
+                .fixedSize()
+                .accessibilityLabel(Text("Update \(book.title)"))
+        }
+        .padding(.horizontal, Space.s12)
+        .padding(.vertical, Space.s12)
     }
 }
 
