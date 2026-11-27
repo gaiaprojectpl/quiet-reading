@@ -5,6 +5,7 @@ import SwiftData
 struct QuietReadingApp: App {
     init() {
         QsFonts.register()
+        NotificationTaps.shared.register()
     }
 
     var body: some Scene {

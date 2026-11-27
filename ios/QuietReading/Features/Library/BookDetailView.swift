@@ -25,6 +25,7 @@ struct BookDetailView: View {
     @State private var tab: DetailTab = .progress
     @State private var addingQuote = false
     @State private var addingNote = false
+    @State private var marginNotes = false
     @State private var quoteSource: QuoteSource?
     @State private var pendingQuoteSource: QuoteSource?
     @State private var coverMenu = false
@@ -120,6 +121,7 @@ struct BookDetailView: View {
                 .presentationCornerRadius(theme.radii.sheet)
         }
         .sheet(isPresented: $addingNote) { NoteComposer(book: book) }
+        .fullScreenCover(isPresented: $marginNotes) { MarginNotesView(book: book).duoCover().modifier(QsNotificationHost()) }
         // Cover photo: take one of the book in your hands, or pick one from Photos.
         .confirmationDialog(book.coverData == nil ? "Add a cover" : "Change the cover", isPresented: $coverMenu, titleVisibility: .visible) {
             if UIImagePickerController.isSourceTypeAvailable(.camera) { Button("Take a photo") { takingCover = true } }
@@ -142,6 +144,7 @@ struct BookDetailView: View {
         .task {
             switch UserDefaults.standard.string(forKey: "qsLibrary") {
             case "move": showMove = true
+            case "margin": marginNotes = true
             case "quotes": tab = .quotes
             case "quoteselect", "quotetype": tab = .quotes; quoteSource = UserDefaults.standard.string(forKey: "qsLibrary") == "quotetype" ? .typed : .photo
             default: break
@@ -374,6 +377,13 @@ struct BookDetailView: View {
     // MARK: Notes tab
 
     @ViewBuilder private var notesTab: some View {
+        // Flow 6 › Margin notes: Pencil on a photo of the page, plus a margin to write in (iPhone Duo).
+        if duo.mode != .phone {
+            Button { marginNotes = true } label: {
+                Label { Text("Margin notes with Pencil") } icon: { Image("qs.pencil").resizable().frame(width: Size.iconM, height: Size.iconM) }
+            }
+            .buttonStyle(QsButtonStyle(priority: .secondary))
+        }
         if notes.isEmpty {
             EmptyStateView(icon: "qs.quote", title: "No notes yet",
                            message: duo.mode != .phone

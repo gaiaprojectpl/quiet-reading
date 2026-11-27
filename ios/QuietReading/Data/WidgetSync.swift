@@ -114,6 +114,9 @@ final class WidgetRouter {
     var openAdd = false
     var openStats = false
     var openPlus = false
+    var updateCurrent = false
+    var finishCurrent = false
+    var openYear = false
     /// Duo open: a book tapped in Astrid's chat opens on the left page.
     var openBookInPlace: Book?
 
@@ -124,6 +127,9 @@ final class WidgetRouter {
         case "add": openAdd = true
         case "stats": openStats = true
         case "plus": openPlus = true
+        case "update-current": updateCurrent = true
+        case "finish-current": finishCurrent = true
+        case "year": openYear = true
         default: break
         }
     }

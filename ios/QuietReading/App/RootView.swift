@@ -80,10 +80,14 @@ struct RootView: View {
         }
         // Widgets: keep them in step with the books, goal and theme; follow widget taps.
         .task(id: widgetSignature) {
+            RecapScheduler.update(books: allBooks)
             WidgetSync.update(books: allBooks, goal: goal, theme: chosenTheme.requiresPlus && !plus.isUnlocked ? .peachSage : chosenTheme,
                               forceHighContrast: forceHighContrast, isPlus: plus.isUnlocked)
         }
         .onOpenURL { router.handle($0) }
+        .onReceive(NotificationCenter.default.publisher(for: NotificationTaps.opened)) { note in
+            if let url = note.object as? URL { router.handle(url) }
+        }
         .onChange(of: scenePhase, initial: true) { _, phase in if phase == .active { router.checkPendingUpdate() } }
         .fullScreenCover(isPresented: Bindable(plus).showPaywall) { PlusView().duoCover() }
         .environment(importSession)
@@ -145,6 +149,9 @@ private struct MainTabs: View {
         .onChange(of: router.openStats) { _, open in if open { router.openStats = false; tab = .stats } }
         .onChange(of: router.openPlus) { _, open in if open { router.openPlus = false; plus.showPaywall = true } }
         .onChange(of: router.openBookInPlace) { _, b in if b != nil { tab = .home } }
+        .onChange(of: router.updateCurrent) { _, on in if on { tab = .home } }
+        .onChange(of: router.finishCurrent) { _, on in if on { tab = .home } }
+        .onChange(of: router.openYear) { _, on in if on { tab = .stats } }
         .modifier(Navigation(duo: duo, tab: $tab, onAdd: { showAdd = true }, showAI: !companion.isOpen))
         // Flow 12 · Reading companion: full screen on iPhone (and Duo closed / upright / tabletop),
         // the right-hand page when the Duo is open like a book.

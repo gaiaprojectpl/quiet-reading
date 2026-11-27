@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import PhotosUI
+import AVFoundation
 
 /// Flow 4 › Edit profile: photo, display name, account name, about me, show my name on widgets.
 struct ProfileEditView: View {
@@ -26,6 +27,7 @@ struct ProfileEditView: View {
     @State private var takingPhoto = false
     @State private var choosingCover = false
     @State private var confirmDiscard = false
+    @State private var cameraBlocked = false
 
     private var handleValid: Bool { handle.isEmpty || handle.allSatisfy { $0.isLetter || $0.isNumber || $0 == "." || $0 == "_" } }
 
@@ -86,7 +88,12 @@ struct ProfileEditView: View {
         .background(theme.palette.bg.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
         .confirmationDialog("Profile photo", isPresented: $photoMenu, titleVisibility: .visible) {
-            if UIImagePickerController.isSourceTypeAvailable(.camera) { Button("Take photo") { takingPhoto = true } }
+            if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                Button("Take photo") {
+                    // Flow 4 › No camera access: explain and offer Settings instead of a dead end.
+                    if AVCaptureDevice.authorizationStatus(for: .video) == .denied { cameraBlocked = true } else { takingPhoto = true }
+                }
+            }
             Button("Choose from library") { pickingLibrary = true }
             if !booksWithCovers.isEmpty { Button("Use a book cover") { choosingCover = true } }
             if photo != nil { Button("Remove photo", role: .destructive) { photo = nil } }
@@ -100,6 +107,12 @@ struct ProfileEditView: View {
         .fullScreenCover(isPresented: $takingPhoto) { CameraCapture { photo = $0 } .ignoresSafeArea() }
         .sheet(isPresented: $choosingCover) {
             CoverPicker(books: booksWithCovers) { data in photo = UIImage(data: data) }
+        }
+        .alert("Allow camera access?", isPresented: $cameraBlocked) {
+            Button("Not now", role: .cancel) {}
+            Button("Open Settings") { if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) } }
+        } message: {
+            Text("Quiet Reading uses the camera only for your photo. It stays on this phone. You can also choose one from your library.")
         }
         // Flow 4 › Unsaved changes
         .alert("Discard your changes?", isPresented: $confirmDiscard) {

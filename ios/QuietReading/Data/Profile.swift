@@ -15,6 +15,7 @@ nonisolated enum ProfileKeys {
     static let appIcon = "appIcon"
     static let lastImport = "lastImportDate"
     static let lastImportSource = "lastImportSource"
+    static let monthlyRecap = "monthlyRecap"
 }
 
 /// Profile photo stored as a small JPEG in Application Support.
@@ -57,6 +58,9 @@ enum ReminderScheduler {
         var time = DateComponents()
         time.hour = minutes / 60
         time.minute = minutes % 60
+        // Tap → page update; touch and hold → Update · Finished (Flow 3 › Reminder notification).
+        content.categoryIdentifier = book == nil ? "" : NotificationTaps.reminderCategory
+        content.userInfo = ["link": book == nil ? "quietreading://add" : "quietreading://update-current"]
         let trigger = UNCalendarNotificationTrigger(dateMatching: time, repeats: true)
         center.add(UNNotificationRequest(identifier: id, content: content, trigger: trigger))
     }
@@ -71,6 +75,40 @@ enum ReminderScheduler {
         guard defaults.bool(forKey: ProfileKeys.reminderOn) else { return }
         let minutes = defaults.object(forKey: ProfileKeys.reminderMinutes) as? Int ?? 20 * 60 + 30
         schedule(minutes: minutes, book: book)
+    }
+}
+
+/// Flow 8 › Monthly recap notification: on the 1st at 9:00, a short look back at the month.
+/// Off by default (calm, no pushy notifications); rescheduled whenever the reading changes.
+enum RecapScheduler {
+    static let id = "monthly-recap"
+
+    static func update(books: [Book]) {
+        let center = UNUserNotificationCenter.current()
+        center.removePendingNotificationRequests(withIdentifiers: [id])
+        guard UserDefaults.standard.bool(forKey: ProfileKeys.monthlyRecap) else { return }
+        let cal = Calendar.current
+        let now = Date.now
+        let month = books.filter { $0.status == .read && $0.dateFinished.map { cal.isDate($0, equalTo: now, toGranularity: .month) } == true }
+        let pagesRead = books.flatMap(\.sessions).filter { cal.isDate($0.date, equalTo: now, toGranularity: .month) }
+            .reduce(0) { $0 + max(0, $1.toPage - $1.fromPage) }
+        let pages = max(pagesRead, month.compactMap(\.pageCount).reduce(0, +))
+        guard !month.isEmpty || pages > 0,
+              let next = cal.date(byAdding: .month, value: 1, to: cal.dateInterval(of: .month, for: now)!.start) else { return }
+
+        let content = UNMutableNotificationContent()
+        content.title = String(localized: "Your \(now.formatted(.dateTime.month(.wide))) in books is ready")
+        var parts: [String] = []
+        if !month.isEmpty { parts.append(month.count == 1 ? String(localized: "1 book") : String(localized: "\(month.count) books")) }
+        if pages > 0 { parts.append(String(localized: "\(pages.formatted()) pages")) }
+        if let fav = month.compactMap({ $0.stars ?? $0.rating.map(Double.init) }).max(), fav >= 4 {
+            parts.append(String(localized: "one \(fav.formatted(.number.precision(.fractionLength(0...1))))-star favourite"))
+        }
+        content.body = ListFormatter.localizedString(byJoining: parts) + "."
+        content.userInfo = ["link": "quietreading://year"]
+        var when = cal.dateComponents([.year, .month, .day], from: next)
+        when.hour = 9
+        center.add(UNNotificationRequest(identifier: id, content: content, trigger: UNCalendarNotificationTrigger(dateMatching: when, repeats: false)))
     }
 }
 

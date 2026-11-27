@@ -10,6 +10,7 @@ struct StatsView: View {
     @Environment(\.theme) private var theme
     @Environment(NotificationCenterModel.self) private var notifications
     @Environment(PlusAccess.self) private var plus
+    @Environment(WidgetRouter.self) private var router
     @Query private var books: [Book]
     @AppStorage(ProfileKeys.goal) private var goal = 0
     @AppStorage("weeklyDaysGoal") private var weeklyDays = 4
@@ -74,6 +75,12 @@ struct StatsView: View {
             }
             .fullScreenCover(item: $finishing) { FinishFlow(book: $0).duoCover() }
             .task(id: stamps.filter(\.earned).map(\.id)) { announceNewStamps() }
+            // Monthly recap notification → Year in books.
+            .onChange(of: router.openYear, initial: true) { _, on in
+                guard on else { return }
+                router.openYear = false
+                path = [.year(Calendar.current.component(.year, from: .now))]
+            }
             // The share icon shares what's on screen (week, month or year) as a ready-made image.
             .task(id: "\(period)-\(year)-\(month)-\(books.count)-\(theme.rawValue)") { renderShare() }
             #if DEBUG

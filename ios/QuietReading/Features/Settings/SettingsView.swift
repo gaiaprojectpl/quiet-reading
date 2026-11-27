@@ -26,6 +26,8 @@ struct SettingsView: View {
     @State private var editingGoal = false
     @State private var editingReminder = false
     @State private var confirmDelete = false
+    @State private var notificationsOff = false
+    @AppStorage(ProfileKeys.monthlyRecap) private var monthlyRecap = false
     @State private var avatar: UIImage?
 
     enum Page: Hashable { case profile, theme, icon, sources, companion }
@@ -51,6 +53,7 @@ struct SettingsView: View {
                     }
                     section("Reading") {
                         reminderRow
+                        recapRow
                         QsListRow(icon: "qs.link", title: "Sources", subtitle: LocalizedStringKey(sourcesLine)) { path.append(.sources) }
                         QsListRow(icon: "qs.sparkles", title: "Astrid · reading companion",
                                   subtitle: UserDefaults.standard.bool(forKey: CompanionKeys.enabled) ? "On · stays on your iPhone" : "Off") { path.append(.companion) }
@@ -95,6 +98,14 @@ struct SettingsView: View {
                 ReminderSheet(minutes: $reminderMinutes) {
                     if reminderOn { ReminderScheduler.schedule(minutes: reminderMinutes, book: currentBook) }
                 }
+            }
+            .alert("Notifications are off", isPresented: $notificationsOff) {
+                Button("Not now", role: .cancel) {}
+                Button("Open Settings") {
+                    if let url = URL(string: UIApplication.openNotificationSettingsURLString) { UIApplication.shared.open(url) }
+                }
+            } message: {
+                Text("To get your reminder or monthly recap, allow notifications for Quiet Reading in iPhone Settings.")
             }
             .alert("Delete everything on this phone?", isPresented: $confirmDelete) {
                 Button("Cancel", role: .cancel) {}
@@ -147,6 +158,27 @@ struct SettingsView: View {
         .accessibilityHint("Edit profile")
     }
 
+    /// Flow 8 › Monthly recap: off by default; asks for notification permission when turned on.
+    private var recapRow: some View {
+        Toggle(isOn: $monthlyRecap) {
+            VStack(alignment: .leading, spacing: Space.s2) {
+                Text("Monthly recap").font(.body.weight(.medium)).foregroundStyle(theme.palette.ink)
+                Text("On the 1st, a short look back at your month").font(.footnote).foregroundStyle(theme.palette.ink2)
+            }
+        }
+        .tint(theme.palette.accent)
+        .padding(Space.s16)
+        .onChange(of: monthlyRecap) { _, on in
+            Task {
+                if on, !(await ReminderScheduler.requestPermission()) {
+                    monthlyRecap = false
+                    notificationsOff = true
+                }
+                RecapScheduler.update(books: books)
+            }
+        }
+    }
+
     private var reminderRow: some View {
         HStack(spacing: Space.s16) {
             Image("qs.bell").resizable().frame(width: Size.iconM + 2, height: Size.iconM + 2)
@@ -175,7 +207,9 @@ struct SettingsView: View {
                     if await ReminderScheduler.requestPermission() {
                         ReminderScheduler.schedule(minutes: reminderMinutes, book: currentBook)
                     } else {
+                        // Flow 3 › Notification permission declined: say so calmly, offer the way back.
                         reminderOn = false
+                        notificationsOff = true
                     }
                 } else {
                     ReminderScheduler.cancel()

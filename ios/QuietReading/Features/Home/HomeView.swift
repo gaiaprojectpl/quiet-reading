@@ -76,6 +76,17 @@ struct HomeView: View {
                 router.updateBookID = nil
                 if let book = WidgetSync.book(for: id, in: context) { path = []; updating = book }
             }
+            // Reminder notification: tap → Update; touch and hold → Update · Finished.
+            .onChange(of: router.updateCurrent, initial: true) { _, on in
+                guard on else { return }
+                router.updateCurrent = false
+                if let current { path = []; updating = current }
+            }
+            .onChange(of: router.finishCurrent, initial: true) { _, on in
+                guard on else { return }
+                router.finishCurrent = false
+                if let current { path = []; finishing = current }
+            }
             .onChange(of: router.openBookInPlace) { _, book in
                 guard let book else { return }
                 router.openBookInPlace = nil
