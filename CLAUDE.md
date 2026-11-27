@@ -56,6 +56,7 @@ Full Figma → code rules (token mapping, components, icons, assets): @docs/figm
 - `accentInk` for accent-coloured text/icons on soft/soft2 backgrounds; `lineStrong` for input/control borders (3:1); `line` only for dividers.
 - Heading font per theme (Newsreader / Fraunces / Lora / Playfair Display – all OFL, still to bundle); body = system (SF / Roboto). Support Dynamic Type / font scaling everywhere.
 - Icons: Tabler Icons (MIT), outline, stroke 1.5 (current Android drawables and SF Symbols are placeholders).
+- **Buttons: pinned to the bottom, 24 pt above the bottom line** (screen edge, home-indicator area, tab bar or keyboard – whatever is lowest). Same on every screen, iPhone and every iPhone Duo posture. Code: `QsLayout.actionsAboveBottomLine`. Exception (Kaja's Figma): iPhone screens with the bottom tab bar keep inline content buttons (empty states, book card).
 - Touch targets ≥ 44 pt iOS / 48 dp Android. Inputs 40 high with 1 px lineStrong border; error = red border/icon/helper, label stays neutral.
 - One navigation everywhere: Home · Library · Add · Stats · Settings (Add = accent circle in design). iPhone Duo open = side rail.
 - Progress is TYPED (number keyboard opens), never +/− steppers. Current book buttons: Update + Finished.

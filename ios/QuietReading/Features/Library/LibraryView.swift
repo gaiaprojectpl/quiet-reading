@@ -1,6 +1,9 @@
 import SwiftUI
 
+/// Flow 10 › A · Empty states › Library · empty.
 struct LibraryView: View {
+    var onAddBook: () -> Void = {}
+
     var body: some View {
         ScreenScaffold(title: "Library") {
             EmptyStateView(
@@ -8,7 +11,8 @@ struct LibraryView: View {
                 title: "Your library starts here",
                 message: "Add books by photo, title or barcode, or bring them over from Goodreads."
             )
-            Button("Add a book") {}
+        } actions: {
+            Button("Add a book", action: onAddBook)
                 .buttonStyle(QsButtonStyle(kind: .primary))
             Button("Import a library") {}
                 .buttonStyle(QsButtonStyle(kind: .outline))

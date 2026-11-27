@@ -94,7 +94,7 @@ struct OnboardingPage<Content: View, Actions: View>: View {
 
     /// Button placement rules (Figma, 27 Nov): bottom of the action group 16 pt above the safe area
     /// (50 pt from the edge on iPhone). The Duo has no home indicator area, so keep 48 pt there.
-    private var actionsBottom: CGFloat { duo.mode == .phone ? Space.s16 : Space.s48 }
+    private var actionsBottom: CGFloat { QsLayout.actionsAboveBottomLine }
 
     private var page: some View {
         ScrollView {
@@ -196,7 +196,7 @@ struct LandingView: View {
             }
             .padding(.horizontal, Space.s20)
             .padding(.top, Space.s20)
-            .padding(.bottom, Space.s48) // button placement rules: clear of the edge on Duo
+            .padding(.bottom, duo.actionsBottom)
         }
         .background(theme.palette.bg.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
@@ -277,25 +277,18 @@ struct ChooseSourceView: View {
                 .font(.subheadline)
                 .foregroundStyle(theme.palette.ink2)
 
-            VStack(spacing: 0) {
-                SourceRow(icon: "qs.link", title: "Goodreads profile link",
+            QsListCard {
+                QsListRow(icon: "qs.link", title: "Goodreads profile link",
                           subtitle: "Reads your shelves · public profiles", action: onNotReady)
-                divider
-                SourceRow(icon: "qs.file", title: "Goodreads CSV file",
+                QsListRow(icon: "qs.file", title: "Goodreads CSV file",
                           subtitle: "Full history from a Goodreads export") { showImporter = true }
-                divider
-                SourceRow(icon: "qs.file", title: "StoryGraph CSV file",
+                QsListRow(icon: "qs.file", title: "StoryGraph CSV file",
                           subtitle: "From StoryGraph › Manage account") { showImporter = true }
-                divider
-                SourceRow(icon: "qs.library", title: "Hardcover account",
+                QsListRow(icon: "qs.library", title: "Hardcover account",
                           subtitle: "Live sync with your API token", action: onNotReady)
-                divider
-                SourceRow(icon: "qs.plus", title: "Start fresh",
+                QsListRow(icon: "qs.plus", title: "Start fresh",
                           subtitle: "Add books by photo or search", action: onStartFresh)
             }
-            .background(theme.palette.surface, in: RoundedRectangle(cornerRadius: theme.radii.card, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: theme.radii.card, style: .continuous)
-                .strokeBorder(theme.palette.line, lineWidth: 0.75))
 
             InfoBanner(message: "We never ask for your Goodreads password.")
         }
@@ -306,47 +299,6 @@ struct ChooseSourceView: View {
         }
     }
 
-    private var divider: some View {
-        theme.palette.line.frame(height: Size.stroke)
-    }
-}
-
-private struct SourceRow: View {
-    let icon: String
-    let title: LocalizedStringKey
-    let subtitle: LocalizedStringKey
-    let action: () -> Void
-    @Environment(\.theme) private var theme
-    @ScaledMetric(relativeTo: .body) private var tile = Space.s40
-    @ScaledMetric(relativeTo: .body) private var glyph = Size.iconM + 2
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: Space.s16) {
-                Image(icon)
-                    .resizable()
-                    .frame(width: glyph, height: glyph)
-                    .foregroundStyle(theme.palette.accentInk)
-                    .frame(width: tile, height: tile)
-                    .background(theme.palette.soft2, in: RoundedRectangle(cornerRadius: theme.radii.field, style: .continuous))
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: Space.s2) {
-                    Text(title).font(.body.weight(.medium)).foregroundStyle(theme.palette.ink)
-                    Text(subtitle).font(.footnote).foregroundStyle(theme.palette.ink2)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                Image("qs.chevron")
-                    .resizable()
-                    .frame(width: Size.iconS + 2, height: Size.iconS + 2)
-                    .foregroundStyle(theme.palette.ink2)
-                    .accessibilityHidden(true)
-            }
-            .padding(Space.s16)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityElement(children: .combine)
-    }
 }
 
 // MARK: - Step 3 · Importing your books

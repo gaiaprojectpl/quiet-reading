@@ -52,7 +52,7 @@ private struct MainTabs: View {
         Group {
             switch tab {
             case .home: HomeView(onSeeAll: { tab = .library }, onAddBook: { showAdd = true })
-            case .library: LibraryView()
+            case .library: LibraryView(onAddBook: { showAdd = true })
             case .add: EmptyView() // Add is a sheet, never a tab
             case .stats: StatsView()
             case .settings: SettingsView()
@@ -62,8 +62,17 @@ private struct MainTabs: View {
         .modifier(Navigation(duo: duo, tab: $tab, onAdd: { showAdd = true }))
         .sheet(isPresented: $showAdd) {
             AddBookView()
-                .presentationDragIndicator(.visible)
         }
+        #if DEBUG
+        // Test builds only: `-qsOpen library` or `-qsOpen add` opens a tab or the Add sheet.
+        .task {
+            switch UserDefaults.standard.string(forKey: "qsOpen") {
+            case "library": tab = .library
+            case "add": showAdd = true
+            default: break
+            }
+        }
+        #endif
     }
 
     /// Bottom tab bar on iPhone and in tabletop; the vertical rail in the system column on Duo.
@@ -87,9 +96,11 @@ private struct MainTabs: View {
                             .ignoresSafeArea(edges: .bottom)
                     }
             } else {
-                content.safeAreaInset(edge: .bottom, spacing: 0) {
-                    QsTabBar(selection: $tab, onAdd: onAdd)
-                }
+                content
+                    .duoTopSpacing(duo)
+                    .safeAreaInset(edge: .bottom, spacing: 0) {
+                        QsTabBar(selection: $tab, onAdd: onAdd)
+                    }
             }
         }
     }
@@ -99,7 +110,7 @@ private extension View {
     /// On Duo the clock lives in the side column, so the top safe area is 0.
     /// Give titles the same room as below an iPhone status bar so they don't hug the corner.
     func duoTopSpacing(_ duo: DuoLayout) -> some View {
-        padding(.top, duo.mode == .phone || duo.mode == .tabletop ? 0 : Space.s48)
+        padding(.top, duo.topSpacing)
     }
 }
 

@@ -21,6 +21,7 @@ struct HomeView: View {
                     title: "Your shelf is ready",
                     message: "Add the book you’re reading now. It takes a few seconds."
                 )
+            } actions: {
                 Button("Add a book", action: onAddBook)
                     .buttonStyle(QsButtonStyle(kind: .primary))
             }
@@ -30,7 +31,7 @@ struct HomeView: View {
                     switch duo.mode {
                     case .book: bookLayout
                     case .tabletop: tabletopLayout
-                    case .phone, .single: phoneLayout
+                    case .phone, .single, .upright: phoneLayout
                     }
                 }
                 .background(theme.palette.bg.ignoresSafeArea())
@@ -56,6 +57,7 @@ struct HomeView: View {
             .padding(.top, Space.s16)
             .padding(.bottom, Space.s40)
         }
+        .safeAreaInset(edge: .bottom, spacing: 0) { if pinActions { pinnedActions } }
     }
 
     /// Duo open like a book: Reading now on the left page, Up next on the right page.
@@ -68,6 +70,7 @@ struct HomeView: View {
                 }
                 .padding(Space.s20)
             }
+            .safeAreaInset(edge: .bottom, spacing: 0) { pinnedActions }
             .frame(width: duo.fold.minX)
             ScrollView {
                 if !upNext.isEmpty { upNextList }
@@ -96,11 +99,27 @@ struct HomeView: View {
             ScrollView {
                 if !upNext.isEmpty { upNextList }
             }
+            .safeAreaInset(edge: .bottom, spacing: 0) { pinnedActions }
         }
         .ignoresSafeArea(edges: .top)
     }
 
     // MARK: Sections
+
+    /// On iPhone Duo the navigation is a side rail, so Update / Finished are pinned to the bottom
+    /// of the screen (or page) in every posture. On iPhone they stay in the card above the tab bar.
+    private var pinActions: Bool { duo.mode != .phone }
+
+    @ViewBuilder private var pinnedActions: some View {
+        if let current {
+            BookActions(book: current, onUpdate: { updating = current })
+                .padding(.horizontal, Space.s20)
+                .padding(.top, Space.s12)
+                // Tabletop has the bottom tab bar below; elsewhere keep clear of the edge (placement rules).
+                .padding(.bottom, duo.actionsBottom)
+                .background(theme.palette.bg)
+        }
+    }
 
     private var header: some View {
         VStack(alignment: .leading, spacing: Space.s20) {
@@ -117,7 +136,7 @@ struct HomeView: View {
 
     @ViewBuilder private var currentSection: some View {
         if let current {
-            CurrentBookCard(book: current, onUpdate: { updating = current })
+            CurrentBookCard(book: current, onUpdate: { updating = current }, showsActions: !pinActions)
         } else {
             InfoBanner(message: "No book in progress. Pick one from Up next or your library.")
         }
@@ -196,8 +215,8 @@ struct HomeView: View {
 private struct CurrentBookCard: View {
     let book: Book
     let onUpdate: () -> Void
+    var showsActions = true
     @Environment(\.theme) private var theme
-    @Environment(\.modelContext) private var context
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.s16) {
@@ -234,17 +253,8 @@ private struct CurrentBookCard: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .accessibilityElement(children: .combine)
-            HStack(spacing: Space.s12) {
-                Button("Update", action: onUpdate)
-                    .buttonStyle(QsButtonStyle(kind: .primary))
-                Button("Finished") {
-                    book.status = .read
-                    book.dateFinished = .now
-                    if let pages = book.pageCount { book.currentPage = pages }
-                    book.lastUpdated = .now
-                    try? context.save()
-                }
-                .buttonStyle(QsButtonStyle(kind: .secondary))
+            if showsActions {
+                BookActions(book: book, onUpdate: onUpdate)
             }
         }
         .padding(Space.s16)
@@ -254,7 +264,30 @@ private struct CurrentBookCard: View {
     }
 }
 
-/// Typed progress (number keyboard opens straight away). Flow 3 will replace this with the full design.
+/// Update + Finished for the current book.
+private struct BookActions: View {
+    let book: Book
+    let onUpdate: () -> Void
+    @Environment(\.modelContext) private var context
+
+    var body: some View {
+        HStack(spacing: Space.s12) {
+            Button("Update", action: onUpdate)
+                .buttonStyle(QsButtonStyle(kind: .primary))
+            Button("Finished") {
+                book.status = .read
+                book.dateFinished = .now
+                if let pages = book.pageCount { book.currentPage = pages }
+                book.lastUpdated = .now
+                try? context.save()
+            }
+            .buttonStyle(QsButtonStyle(kind: .secondary))
+        }
+    }
+}
+
+/// Flow 3 › Step 2 · Update page: typed page (number keyboard opens straight away),
+/// Finished + Update side by side, 16 pt above the keyboard (button placement rules).
 private struct UpdatePageSheet: View {
     let book: Book
     @Environment(\.theme) private var theme
@@ -265,37 +298,64 @@ private struct UpdatePageSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.s16) {
-            Text(book.title)
+            Text("Where are you now?")
                 .font(theme.headline(22, relativeTo: .title2))
                 .foregroundStyle(theme.palette.ink)
+                .accessibilityAddTraits(.isHeader)
             VStack(alignment: .leading, spacing: Space.s8) {
-                Text("Page you’re on")
-                    .font(.subheadline)
+                Text("Page")
+                    .font(.footnote)
                     .foregroundStyle(theme.palette.ink2)
-                TextField("Page", value: $page, format: .number)
-                    .keyboardType(.numberPad)
-                    .focused($focused)
-                    .font(.body)
-                    .padding(.horizontal, Space.s12)
-                    .frame(minHeight: Size.field)
-                    .background(theme.palette.surface, in: RoundedRectangle(cornerRadius: theme.radii.field, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: theme.radii.field, style: .continuous)
-                        .strokeBorder(theme.palette.lineStrong, lineWidth: Size.stroke))
+                HStack {
+                    TextField("Page", value: $page, format: .number)
+                        .keyboardType(.numberPad)
+                        .focused($focused)
+                        .font(.body)
+                    if let pages = book.pageCount {
+                        Text("of \(pages)")
+                            .font(.subheadline)
+                            .foregroundStyle(theme.palette.ink2)
+                    }
+                }
+                .padding(.horizontal, Space.s12)
+                .frame(minHeight: Size.field)
+                .background(theme.palette.surface, in: RoundedRectangle(cornerRadius: theme.radii.field, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: theme.radii.field, style: .continuous)
+                    .strokeBorder(theme.palette.lineStrong, lineWidth: Size.stroke))
             }
-            Button("Save") {
-                if let page {
-                    book.currentPage = max(0, book.pageCount.map { min(page, $0) } ?? page)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, Space.s20)
+        .padding(.top, Space.s24)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            HStack(spacing: Space.s12) {
+                Button("Finished") {
+                    book.status = .read
+                    book.dateFinished = .now
+                    if let pages = book.pageCount { book.currentPage = pages }
                     book.lastUpdated = .now
                     try? context.save()
+                    dismiss()
                 }
-                dismiss()
+                .buttonStyle(QsButtonStyle(kind: .secondary))
+                Button("Update") {
+                    if let page {
+                        book.currentPage = max(0, book.pageCount.map { min(page, $0) } ?? page)
+                        book.lastUpdated = .now
+                        try? context.save()
+                    }
+                    dismiss()
+                }
+                .buttonStyle(QsButtonStyle(kind: .primary))
             }
-            .buttonStyle(QsButtonStyle(kind: .primary))
-            Spacer()
+            .padding(.horizontal, Space.s20)
+            .padding(.top, Space.s16)
+            .padding(.bottom, QsLayout.actionsAboveBottomLine) // above the keyboard
+            .background(theme.palette.bg)
         }
-        .padding(Space.s20)
         .background(theme.palette.bg.ignoresSafeArea())
-        .presentationDetents([.medium])
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
         .onAppear {
             page = book.currentPage > 0 ? book.currentPage : nil
             focused = true
