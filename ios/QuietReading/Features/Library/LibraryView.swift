@@ -53,8 +53,7 @@ struct LibraryView: View {
     private var shelves: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Space.s16) {
-                topIcons
-                ScreenTitle(title: "Library")
+                ScreenHeader(title: "Library") { topIcons }
                 if searching { searchField }
                 shelfChips
                 content
@@ -62,7 +61,7 @@ struct LibraryView: View {
                     .gentleAnimation(filter)
             }
             .padding(.horizontal, Space.s20)
-            .padding(.top, Space.s8)
+            .padding(.top, Space.s16)
             .padding(.bottom, Space.s40)
         }
         .scrollBounceBehavior(.basedOnSize)
@@ -88,7 +87,6 @@ struct LibraryView: View {
 
     private var topIcons: some View {
         HStack(spacing: 0) {
-            Spacer()
             iconButton("qs.search", label: searching ? "Close search" : "Search") {
                 searching.toggle()
                 if !searching { query = "" }

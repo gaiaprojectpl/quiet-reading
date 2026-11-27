@@ -14,6 +14,28 @@ struct ScreenTitle: View {
     }
 }
 
+/// Large title with icon buttons (search, sort, share…) on the same line, so no row is wasted.
+/// At the accessibility text sizes the icons move under the title instead of squeezing it.
+struct ScreenHeader<Trailing: View>: View {
+    let title: LocalizedStringKey
+    @ViewBuilder var trailing: Trailing
+    @Environment(\.dynamicTypeSize) private var typeSize
+
+    var body: some View {
+        if typeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: Space.s4) {
+                ScreenTitle(title: title)
+                HStack(spacing: 0) { trailing }
+            }
+        } else {
+            HStack(alignment: .center, spacing: Space.s8) {
+                ScreenTitle(title: title)
+                HStack(spacing: 0) { trailing }
+            }
+        }
+    }
+}
+
 /// Shared screen shell: themed background, 20 pt side margins, serif large title.
 /// The system navigation bar is hidden because it can't use the per-theme heading font.
 ///

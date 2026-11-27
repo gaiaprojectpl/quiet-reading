@@ -40,12 +40,11 @@ struct StatsView: View {
         NavigationStack(path: $path) {
             ScrollView {
                 VStack(alignment: .leading, spacing: Space.s16) {
-                    HStack {
-                        Spacer()
+                    ScreenHeader(title: "Stats") {
                         if stats.hasAnyData {
                             Button { path.append(.year(year)) } label: {
-                                Image("qs.share").resizable().frame(width: Size.iconM, height: Size.iconM)
-                                    .foregroundStyle(theme.palette.ink2)
+                                Image("qs.share").resizable().frame(width: Size.iconL, height: Size.iconL)
+                                    .foregroundStyle(theme.palette.ink)
                                     .frame(width: Size.touchIos, height: Size.touchIos)
                                     .contentShape(Rectangle())
                             }
@@ -53,11 +52,10 @@ struct StatsView: View {
                             .accessibilityLabel("Share your year")
                         }
                     }
-                    .frame(minHeight: Size.touchIos)
-                    ScreenTitle(title: "Stats")
                     if stats.hasAnyData { content } else { empty }
                 }
                 .padding(.horizontal, Space.s20)
+                .padding(.top, Space.s16)
                 .padding(.bottom, Space.s40)
                 .gentleAnimation(period)
             }

@@ -346,6 +346,8 @@ private struct CurrentBookCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.s16) {
+            // Tap the book (cover, title, progress) for its details; the buttons stay separate.
+            NavigationLink(value: book) {
             HStack(alignment: .top, spacing: Space.s16) {
                 BookCover(source: .data(book.coverData), title: book.title, width: 96)
                 VStack(alignment: .leading, spacing: Space.s8) {
@@ -382,7 +384,11 @@ private struct CurrentBookCard: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .contentShape(Rectangle())
+            }
+            .buttonStyle(QsPressStyle())
             .accessibilityElement(children: .combine)
+            .accessibilityHint("Open the book")
             if showsActions {
                 BookActions(onUpdate: onUpdate, onFinish: onFinish)
             }
