@@ -1,9 +1,11 @@
 import SwiftUI
 
 /// Flow 2 › Step 2 · Add a book: a short sheet from the bottom with the three ways to add.
-/// Photo, barcode and search open their own screens in Flow 2 (not built yet).
+/// Each row opens the Add flow (camera, barcode or typing) once this sheet has closed.
 struct AddBookView: View {
+    var onChoose: (AddMode) -> Void = { _ in }
     @Environment(\.theme) private var theme
+    @Environment(\.dismiss) private var dismiss
     @State private var height: CGFloat = 320
 
     var body: some View {
@@ -14,9 +16,9 @@ struct AddBookView: View {
                 .accessibilityAddTraits(.isHeader)
             QsListCard {
                 QsListRow(icon: "qs.camera", title: "Photograph the cover",
-                          subtitle: "Read on your phone, nothing uploaded") {}
-                QsListRow(icon: "qs.barcode", title: "Scan the barcode") {}
-                QsListRow(icon: "qs.search", title: "Search by title or author") {}
+                          subtitle: "Read on your phone, nothing uploaded") { choose(.cover) }
+                QsListRow(icon: "qs.barcode", title: "Scan the barcode") { choose(.barcode) }
+                QsListRow(icon: "qs.search", title: "Search by title or author") { choose(.type) }
             }
         }
         .padding(.horizontal, Space.s20)
@@ -28,6 +30,11 @@ struct AddBookView: View {
         // The sheet is only as tall as its content, so it sits at the bottom within thumb reach.
         .presentationDetents([.height(height)])
         .presentationDragIndicator(.visible)
+    }
+
+    private func choose(_ mode: AddMode) {
+        onChoose(mode)
+        dismiss()
     }
 }
 

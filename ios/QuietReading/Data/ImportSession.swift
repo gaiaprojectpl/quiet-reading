@@ -59,7 +59,8 @@ final class ImportSession {
             let isbns = chunk.map(\.isbn)
             let results = await withTaskGroup(of: (Int, Data?).self) { group in
                 for (i, isbn) in isbns.enumerated() {
-                    group.addTask { (i, await CoverFetcher.cover(isbn: isbn)) }
+                    // Open Library first, Google Books when it has nothing.
+                    group.addTask { (i, await BookSearch.coverData(isbn: isbn)) }
                 }
                 var out = [Data?](repeating: nil, count: isbns.count)
                 for await (i, data) in group { out[i] = data }

@@ -5,7 +5,7 @@ import SwiftUI
 /// announced by VoiceOver. For meaningful moments only (page saved, book added).
 @Observable
 final class NotificationCenterModel {
-    enum Kind { case success, info }
+    enum Kind { case success, info, warning }
 
     struct Item: Identifiable, Equatable {
         let id = UUID()
@@ -63,16 +63,32 @@ private struct QsNotificationView: View {
     let item: NotificationCenterModel.Item
     let onClose: () -> Void
     @Environment(\.theme) private var theme
+
+    private var badgeColor: Color {
+        switch item.kind {
+        case .success: theme.palette.success
+        case .info: theme.palette.accent
+        case .warning: theme.palette.warning
+        }
+    }
+
+    private var backgroundColor: Color {
+        switch item.kind {
+        case .success: theme.palette.successSoft
+        case .info: theme.palette.soft2
+        case .warning: theme.palette.warningSoft
+        }
+    }
     @ScaledMetric(relativeTo: .subheadline) private var badge = Space.s32 + Space.s4
 
     var body: some View {
         HStack(spacing: Space.s12) {
-            Image(item.kind == .success ? "qs.check" : "qs.info")
+            Image(item.kind == .success ? "qs.check" : item.kind == .warning ? "qs.bell" : "qs.info")
                 .resizable()
                 .frame(width: Size.iconM, height: Size.iconM)
                 .foregroundStyle(theme.palette.onAccent)
                 .frame(width: badge, height: badge)
-                .background(item.kind == .success ? theme.palette.success : theme.palette.accent, in: Circle())
+                .background(badgeColor, in: Circle())
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: Space.s2) {
                 Text(item.title).font(.subheadline.weight(.semibold))
@@ -83,7 +99,7 @@ private struct QsNotificationView: View {
             if let actionTitle = item.actionTitle, let action = item.action {
                 Button(actionTitle) { action(); onClose() }
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(item.kind == .success ? theme.palette.success : theme.palette.accentInk)
+                    .foregroundStyle(item.kind == .success ? theme.palette.success : item.kind == .warning ? theme.palette.warning : theme.palette.accentInk)
                     .frame(minHeight: Size.touchIos)
             }
             Button(action: onClose) {
@@ -100,7 +116,7 @@ private struct QsNotificationView: View {
         .padding(.vertical, Space.s12)
         .padding(.leading, Space.s16)
         .padding(.trailing, Space.s4)
-        .background(item.kind == .success ? theme.palette.successSoft : theme.palette.soft2, in: RoundedRectangle(cornerRadius: theme.radii.card, style: .continuous))
+        .background(backgroundColor, in: RoundedRectangle(cornerRadius: theme.radii.card, style: .continuous))
         .shadow(color: theme.palette.scrim.opacity(0.12), radius: 9, x: 0, y: 6)
         .accessibilityElement(children: .contain)
     }

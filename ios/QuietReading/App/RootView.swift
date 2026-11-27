@@ -50,6 +50,10 @@ private struct MainTabs: View {
     @Environment(\.duoLayout) private var duo
     @State private var tab: AppTab = .home
     @State private var showAdd = false
+    @State private var pendingAdd: AddMode?
+    @State private var addFlow: AddFlowItem?
+
+    struct AddFlowItem: Identifiable { let id = UUID(); let mode: AddMode }
 
     var body: some View {
         Group {
@@ -63,8 +67,14 @@ private struct MainTabs: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .modifier(Navigation(duo: duo, tab: $tab, onAdd: { showAdd = true }))
-        .sheet(isPresented: $showAdd) {
-            AddBookView()
+        .sheet(isPresented: $showAdd, onDismiss: {
+            if let mode = pendingAdd { pendingAdd = nil; addFlow = AddFlowItem(mode: mode) }
+        }) {
+            AddBookView(onChoose: { pendingAdd = $0 })
+        }
+        .fullScreenCover(item: $addFlow) { item in
+            AddFlow(mode: item.mode)
+                .modifier(QsNotificationHost())
         }
         #if DEBUG
         // Test builds only: `-qsOpen library` or `-qsOpen add` opens a tab or the Add sheet.
@@ -72,6 +82,8 @@ private struct MainTabs: View {
             switch UserDefaults.standard.string(forKey: "qsOpen") {
             case "library": tab = .library
             case "add": showAdd = true
+            case "addtype": addFlow = AddFlowItem(mode: .type)
+            case "addcover": addFlow = AddFlowItem(mode: .cover)
             default: break
             }
         }
