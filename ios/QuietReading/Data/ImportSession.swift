@@ -16,7 +16,20 @@ final class ImportSession {
     private(set) var missingCovers = 0
     /// The last few covers found, shown as thumbnails while matching.
     private(set) var recentCovers: [Data] = []
+    /// "Goodreads" / "StoryGraph", for "214 books from Goodreads".
+    private(set) var sourceName = ""
+    private var startedMatching = Date.now
     private var task: Task<Void, Never>?
+
+    /// Rough time left, from the pace so far ("about a minute left").
+    var timeLeftText: String? {
+        guard phase == .matching, done > 3 else { return nil }
+        let perBook = Date.now.timeIntervalSince(startedMatching) / Double(done)
+        let seconds = perBook * Double(total - done)
+        if seconds < 45 { return String(localized: "less than a minute left") }
+        if seconds < 90 { return String(localized: "about a minute left") }
+        return String(localized: "about \(Int((seconds / 60).rounded())) minutes left")
+    }
 
     func start(fileURL: URL, context: ModelContext) {
         task?.cancel()
@@ -46,6 +59,8 @@ final class ImportSession {
         try? context.save()
 
         total = added.count
+        sourceName = imported.first.map { $0.source == .storyGraph ? "StoryGraph" : "Goodreads" } ?? ""
+        startedMatching = .now
         phase = added.isEmpty ? .finished : .matching
         guard !added.isEmpty else { return }
         task = Task { await matchCovers(added, context: context) }

@@ -5,18 +5,25 @@ import SwiftData
 struct HomeView: View {
     var onSeeAll: () -> Void = {}
     var onAddBook: () -> Void = {}
+    var onImport: () -> Void = {}
     @Environment(\.theme) private var theme
     @Query(sort: \Book.lastUpdated, order: .reverse) private var books: [Book]
     @State private var updating: Book?
     @State private var finishing: Book?
     @State private var finishAfterSheet: Book?
+    @State private var choosingNext = false
     #if DEBUG
     @State private var debugWhatNext = false
     @Environment(NotificationCenterModel.self) private var debugNotifications
     #endif
     @Environment(\.duoLayout) private var duo
 
-    private var current: Book? { books.first { $0.status == .reading } }
+    private var current: Book? {
+        #if DEBUG
+        if UserDefaults.standard.bool(forKey: "qsNoCurrent") { return nil }   // test builds: -qsNoCurrent YES
+        #endif
+        return books.first { $0.status == .reading }
+    }
     private var upNext: [Book] { Array(books.filter { $0.status == .toRead }.prefix(10)) }
 
     var body: some View {
@@ -30,6 +37,8 @@ struct HomeView: View {
             } actions: {
                 Button("Add a book", action: onAddBook)
                     .buttonStyle(QsButtonStyle(priority: .primary))
+                Button("Import from Goodreads or StoryGraph", action: onImport)
+                    .buttonStyle(QsButtonStyle(priority: .text))
             }
         } else {
             NavigationStack {
@@ -52,6 +61,9 @@ struct HomeView: View {
             }
             .fullScreenCover(item: $finishing) { book in
                 FinishFlow(book: book)
+            }
+            .fullScreenCover(isPresented: $choosingNext) {
+                NavigationStack { WhatNextView(onDone: { choosingNext = false }) }
             }
             #if DEBUG
             // Test builds only: `-qsOpen update | finish | saved | whatnext`.
@@ -167,7 +179,7 @@ struct HomeView: View {
         if let current {
             CurrentBookCard(book: current, onUpdate: { updating = current }, onFinish: { finishing = current }, showsActions: !pinActions)
         } else {
-            InfoBanner(message: "No book in progress. Pick one from Up next or your library.")
+            NothingInProgress(hasWantToRead: !upNext.isEmpty, onAddBook: onAddBook, onChoose: { choosingNext = true })
         }
     }
 
@@ -307,6 +319,51 @@ private struct CurrentBookCard: View {
         .background(theme.palette.surface, in: RoundedRectangle(cornerRadius: theme.radii.card, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: theme.radii.card, style: .continuous)
             .strokeBorder(theme.palette.line, lineWidth: Size.stroke))
+    }
+}
+
+/// Flow 10 › A4 · Home · nothing in progress: no streak warning, no pressure.
+private struct NothingInProgress: View {
+    let hasWantToRead: Bool
+    let onAddBook: () -> Void
+    let onChoose: () -> Void
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Space.s20) {
+            VStack(alignment: .leading, spacing: Space.s16) {
+                HStack(alignment: .top, spacing: Space.s16) {
+                    RoundedRectangle(cornerRadius: theme.radii.cover, style: .continuous)
+                        .fill(theme.palette.disabledBg)
+                        .frame(width: Size.coverM, height: Size.coverM * 1.5)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: Space.s8) {
+                        Text("No book yet")
+                            .font(theme.headline(20, relativeTo: .title3))
+                            .foregroundStyle(theme.palette.ink)
+                        Text("Add one by photographing its cover.")
+                            .font(.subheadline)
+                            .foregroundStyle(theme.palette.ink2)
+                    }
+                }
+                Button("Add a book", action: onAddBook)
+                    .buttonStyle(QsButtonStyle(priority: .primary))
+            }
+            .padding(Space.s16)
+            .background(theme.palette.surface, in: RoundedRectangle(cornerRadius: theme.radii.card, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: theme.radii.card, style: .continuous)
+                .strokeBorder(theme.palette.line, lineWidth: Size.stroke))
+            if hasWantToRead {
+                VStack(alignment: .leading, spacing: Space.s12) {
+                    Text("You finished every book you were reading. Pick the next one from Want to read, or let it wait.")
+                        .font(.subheadline)
+                        .foregroundStyle(theme.palette.ink2)
+                    Button("Choose from Want to read", action: onChoose)
+                        .buttonStyle(QsButtonStyle(priority: .secondary))
+                }
+            }
+        }
+        .gentleAppear()
     }
 }
 

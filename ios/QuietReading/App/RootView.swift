@@ -15,6 +15,8 @@ struct RootView: View {
     @Environment(\.colorSchemeContrast) private var contrast
     @State private var importSession = ImportSession()
     @State private var notifications = NotificationCenterModel()
+    @State private var connectivity = Connectivity()
+    @Environment(\.modelContext) private var context
 
     private var resolvedTheme: ThemeID {
         if contrast == .increased { return .highContrast }
@@ -36,7 +38,18 @@ struct RootView: View {
             .background(resolvedTheme.palette.bg.ignoresSafeArea())
         }
         .modifier(QsNotificationHost())
+        // Covers and details fill in by themselves: on launch and whenever the phone comes back online.
+        .task(id: connectivity.isOnline) {
+            if connectivity.isOnline { await CoverBackfill.run(context: context) }
+        }
+        .onChange(of: importSession.phase) { _, phase in
+            if phase == .finished, importSession.total > 0 {
+                notifications.show(String(localized: "Your library is ready"),
+                                   message: String(localized: "\(importSession.total) books"))
+            }
+        }
         .environment(importSession)
+        .environment(connectivity)
         .environment(notifications)
         #if DEBUG
         .modifier(DuoProbe())
@@ -50,6 +63,7 @@ private struct MainTabs: View {
     @Environment(\.duoLayout) private var duo
     @State private var tab: AppTab = .home
     @State private var showAdd = false
+    @State private var showImport = false
     @State private var pendingAdd: AddMode?
     @State private var addFlow: AddFlowItem?
 
@@ -58,8 +72,8 @@ private struct MainTabs: View {
     var body: some View {
         Group {
             switch tab {
-            case .home: HomeView(onSeeAll: { tab = .library }, onAddBook: { showAdd = true })
-            case .library: LibraryView(onAddBook: { showAdd = true })
+            case .home: HomeView(onSeeAll: { tab = .library }, onAddBook: { showAdd = true }, onImport: { showImport = true })
+            case .library: LibraryView(onAddBook: { showAdd = true }, onImport: { showImport = true })
             case .add: EmptyView() // Add is a sheet, never a tab
             case .stats: StatsView()
             case .settings: SettingsView()
@@ -72,6 +86,7 @@ private struct MainTabs: View {
         }) {
             AddBookView(onChoose: { pendingAdd = $0 })
         }
+        .fullScreenCover(isPresented: $showImport) { ImportLibraryView() }
         .fullScreenCover(item: $addFlow) { item in
             AddFlow(mode: item.mode)
                 .modifier(QsNotificationHost())

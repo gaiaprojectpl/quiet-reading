@@ -5,6 +5,7 @@ import SwiftData
 /// On the open iPhone Duo the selected book's details sit on the right page.
 struct LibraryView: View {
     var onAddBook: () -> Void = {}
+    var onImport: () -> Void = {}
 
     @Environment(\.theme) private var theme
     @Environment(\.duoLayout) private var duo
@@ -209,7 +210,7 @@ struct LibraryView: View {
         } actions: {
             Button("Add a book", action: onAddBook)
                 .buttonStyle(QsButtonStyle(priority: .primary))
-            Button("Import a library") {}
+            Button("Import a library", action: onImport)
                 .buttonStyle(QsButtonStyle(priority: .outline))
         }
     }

@@ -282,6 +282,10 @@ struct TypeSearchView: View {
     let onPick: (BookCandidate, [BookCandidate]) -> Void
     let onCancel: () -> Void
     @Environment(\.theme) private var theme
+    @Environment(Connectivity.self) private var connectivity
+    @Environment(NotificationCenterModel.self) private var notifications
+    @State private var slow = false
+    @State private var addingByHand = false
     @State private var query = ""
     @State private var results: [BookCandidate] = []
     @State private var searching = false
@@ -312,9 +316,16 @@ struct TypeSearchView: View {
             .overlay(RoundedRectangle(cornerRadius: theme.radii.field, style: .continuous)
                 .strokeBorder(theme.palette.lineStrong, lineWidth: Size.stroke))
             ScrollView {
-                VStack(spacing: Space.s12) {
-                    if searching {
+                VStack(alignment: .leading, spacing: Space.s12) {
+                    if !connectivity.isOnline {
+                        // Flow 10 › C1 · Search · offline
+                        EmptyStateView(icon: "qs.cloudoff", title: "Search needs a connection",
+                                       message: "You can still add the book by hand. Its cover and details will fill in when you’re back online.")
+                    } else if searching {
+                        Text("Searching Open Library and Google Books…")
+                            .font(.subheadline).foregroundStyle(theme.palette.ink2)
                         ForEach(0..<3, id: \.self) { _ in SkeletonRow() }
+                            .accessibilityLabel("Searching")
                     } else if searched && results.isEmpty {
                         InfoBanner(message: "No books found. Check the spelling, or try the author’s name.")
                     } else {
@@ -331,20 +342,48 @@ struct TypeSearchView: View {
         .padding(.horizontal, Space.s20)
         .padding(.top, Space.s8)
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            ModePicker(mode: $mode, dark: false)
-                .frame(maxWidth: .infinity)
-                .padding(.top, Space.s8)
-                .padding(.bottom, QsLayout.actionsAboveBottomLine)
-                .background(theme.palette.bg)
+            VStack(spacing: Space.s12) {
+                if !connectivity.isOnline {
+                    Button("Add by hand") { addingByHand = true }
+                        .buttonStyle(QsButtonStyle(priority: .primary))
+                    Button("Scan the barcode instead") { mode = .barcode }
+                        .buttonStyle(QsButtonStyle(priority: .text))
+                } else if slow {
+                    Button("Add by hand") { addingByHand = true }
+                        .buttonStyle(QsButtonStyle(priority: .secondary))
+                }
+                ModePicker(mode: $mode, dark: false)
+                    .frame(maxWidth: .infinity)
+            }
+            .padding(.horizontal, Space.s20)
+            .padding(.top, Space.s8)
+            .padding(.bottom, QsLayout.actionsAboveBottomLine)
+            .background(theme.palette.bg)
         }
         .background(theme.palette.bg.ignoresSafeArea())
-        .onAppear { focused = true }
+        // Offline, keep the keyboard closed so the calm message is readable.
+        .onAppear { focused = connectivity.isOnline }
+        .fullScreenCover(isPresented: $addingByHand) {
+            NoMatchView(photo: nil, title: query, author: "", heading: "Add by hand", showsWarning: false,
+                        onDone: { addingByHand = false; onCancel() })
+        }
     }
 
     private func search() {
+        guard connectivity.isOnline else { return }
         Task {
             searching = true
+            slow = false
+            // Flow 10 › B3 · over 8 s: say why and offer a way out (the typed text is kept).
+            let watchdog = Task {
+                try? await Task.sleep(for: .seconds(8))
+                guard !Task.isCancelled, searching else { return }
+                slow = true
+                notifications.show(String(localized: "Still searching"),
+                                   message: String(localized: "Slow connections can take a little longer."), kind: .info)
+            }
             results = await BookSearch.search(query)
+            watchdog.cancel()
             searching = false
             searched = true
         }
@@ -415,6 +454,7 @@ struct ConfirmEditionSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
     @Environment(NotificationCenterModel.self) private var notifications
+    @Environment(Connectivity.self) private var connectivity
     @State private var selected: BookCandidate.ID?
     @State private var usePhoto = true
 
@@ -464,7 +504,7 @@ struct ConfirmEditionSheet: View {
         guard let pick = candidates.first(where: { $0.id == selected }) ?? candidates.first else { return }
         BookAdder.add(title: pick.title, author: pick.author, isbn: pick.isbn, pageCount: pick.pageCount,
                       status: status, photo: usePhoto ? photo : nil, coverURL: pick.coverURL,
-                      context: context, notifications: notifications)
+                      context: context, notifications: notifications, isOnline: connectivity.isOnline)
         dismiss()
         onAdded()
     }
@@ -476,10 +516,13 @@ struct NoMatchView: View {
     let photo: UIImage?
     @State var title: String
     @State var author: String
+    var heading: LocalizedStringKey = "We couldn’t find this book"
+    var showsWarning = true
     let onDone: () -> Void
     @Environment(\.theme) private var theme
     @Environment(\.modelContext) private var context
     @Environment(NotificationCenterModel.self) private var notifications
+    @Environment(Connectivity.self) private var connectivity
     @State private var results: [BookCandidate] = []
     @State private var searching = false
     @State private var confirm = false
@@ -487,7 +530,7 @@ struct NoMatchView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Space.s20) {
-                Text("We couldn’t find this book")
+                Text(heading)
                     .font(theme.headline(28, relativeTo: .title))
                     .foregroundStyle(theme.palette.ink)
                     .accessibilityAddTraits(.isHeader)
@@ -529,6 +572,7 @@ struct NoMatchView: View {
             ConfirmEditionSheet(candidates: Array(results.prefix(3)), photo: photo, onAdded: onDone)
         }
         .onAppear {
+            guard showsWarning else { return }
             notifications.show(String(localized: "No match for this cover"),
                                message: String(localized: "Try the barcode, or add the book yourself."), kind: .warning)
         }
@@ -564,7 +608,7 @@ struct NoMatchView: View {
     private func addAsIs() {
         BookAdder.add(title: title.trimmingCharacters(in: .whitespaces), author: author.trimmingCharacters(in: .whitespaces),
                       isbn: nil, pageCount: nil, status: .toRead, photo: photo, coverURL: nil,
-                      context: context, notifications: notifications)
+                      context: context, notifications: notifications, isOnline: connectivity.isOnline)
         onDone()
     }
 }
@@ -574,7 +618,8 @@ struct NoMatchView: View {
 enum BookAdder {
     /// Saves the book straight away (works offline); the cover fills in later when it's online.
     static func add(title: String, author: String, isbn: String?, pageCount: Int?, status: ReadingStatus,
-                    photo: UIImage?, coverURL: URL?, context: ModelContext, notifications: NotificationCenterModel) {
+                    photo: UIImage?, coverURL: URL?, context: ModelContext, notifications: NotificationCenterModel,
+                    isOnline: Bool = true) {
         let book = Book(title: title, author: author, isbn: isbn, pageCount: pageCount, status: status, source: .manual)
         let existing = (try? context.fetch(FetchDescriptor<Book>())) ?? []
         if existing.contains(where: { $0.matchKey == book.matchKey }) {
@@ -587,8 +632,12 @@ enum BookAdder {
         try? context.save()
 
         let shelf = status == .reading ? String(localized: "Reading now") : status.shelfName
+        // Flow 10 › C2 · Book added offline
+        let message = isOnline || book.coverData != nil
+            ? String(localized: "“\(title)” is on \(shelf).")
+            : String(localized: "Its cover and details will fill in when you’re back online.")
         notifications.show(String(localized: "Book added"),
-                           message: String(localized: "“\(title)” is on \(shelf)."),
+                           message: message,
                            actionTitle: String(localized: "Undo")) {
             context.delete(book)
             try? context.save()
