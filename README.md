@@ -10,7 +10,7 @@ A calm reading tracker for iPhone (incl. iPhone Duo) and Android, with beautiful
 | `tools/` | `generate_tokens.py` turns tokens into Swift and Kotlin |
 | `docs/` | Setup and decisions |
 
-Design: [Figma](https://www.figma.com/design/dw4Stk6aD7oiLaBANzIOCR) · bundle ID / package `app.quietreading`.
+Design: [Figma](https://www.figma.com/design/F2BQfzE22CMwMkI4gZXZNe/quiet-reading) · bundle ID / package `app.quietreading`.
 
 ## Design tokens
 Never hard-code colours, radii or spacing. After a token change in Figma, update `design-tokens/tokens.json`, then run:

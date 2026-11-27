@@ -4,9 +4,14 @@ Calm reading tracker for iPhone (incl. **iPhone Duo**) and Android, built around
 Owner: Kaja (product/design, not a developer – explain steps plainly, no jargon, one question at a time).
 Brand is standalone (not Ibexa). Pastel, delicate, aimed at women readers. **WCAG 2.2 AA is a hard requirement.**
 
-- Figma (source of truth for UI): https://www.figma.com/design/dw4Stk6aD7oiLaBANzIOCR
+- Figma – two copies of the same design (same pages and node IDs):
+  - **playground** (Ibexa drafts, key `Tq6PW3rvfMxncJfpmyjKoz`): https://www.figma.com/design/Tq6PW3rvfMxncJfpmyjKoz/playground – **default for Figma MCP**: the connected account has a Full seat there, so no rate limit.
+  - **quiet-reading** (Kaja's private Pro team, key `F2BQfzE22CMwMkI4gZXZNe`): https://www.figma.com/design/F2BQfzE22CMwMkI4gZXZNe/quiet-reading – the private master copy. MCP access is View seat only (~6 calls/month), so don't read it via MCP unless Kaja asks.
+  - Rule: use the file Kaja links in her message. If she gives no link, use playground. If the two may differ (she mentions editing one of them), ask which is current.
+  - Mockups = page 🎇 UI test (`1:301`), components = 🧱 Components (`46:8`).
   Pages: 🧱 Components (all components + variables), 🎇 UI test (Flows 0–10, iOS + Android rows, errors/edge cases), 🖼️ Graphics, 📱 Prototype.
 - Coded clickable prototype: https://claude.ai/artifact/8rxHGvZqe7ULazEQbH7d5P
+- Product requirements (PRD): docs/Quiet-Reading-PRD.pdf · living version: https://claude.ai/artifact/1C7PDVoFt2hUAsRdkUKh7o
 - Bundle ID / package: `app.quietreading` · display name "Quiet Reading" · English only (but every string localizable).
 
 ## Repo layout
@@ -45,6 +50,7 @@ Always build after changes and fix errors before reporting done. Take simulator/
 - No Kotlin Multiplatform. No social feed, no ads, no streak pressure.
 
 ## Design system rules
+Full Figma → code rules (token mapping, components, icons, assets): @docs/figma-design-system-rules.md
 - Never hard-code colours, radii, spacing, sizes, durations. iOS: `theme.palette.ink`, `theme.radii.btn`, `Space.s16`, `Size.button`, `Motion.base`. Android: `QsTheme.colors.ink`, `QsTheme.shapes.btn`, `QsSpace.s16`, `QsSize.button`, `QsMotion.base`.
 - 6 theme modes: Peach & Sage (free default), Clay & Cream / Blush & Ivory / Lavender & Mist (Plus), **Night** (system dark mode, free), **High contrast** (Increase Contrast / Android 14 contrast, free). Resolution: high contrast > dark > chosen.
 - `accentInk` for accent-coloured text/icons on soft/soft2 backgrounds; `lineStrong` for input/control borders (3:1); `line` only for dividers.
