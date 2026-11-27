@@ -437,12 +437,13 @@ struct CompanionChatView: View {
                     .onSubmit { send() }
                     .padding(.leading, Space.s16)
                     .padding(.vertical, Space.s12)
-                    .overlay(alignment: .trailing) { micButton.padding(.trailing, Space.s4) }
                     .padding(.trailing, Size.touchIos)
                     .frame(minHeight: Size.touchIos)
                     .background(theme.palette.surface, in: RoundedRectangle(cornerRadius: Size.touchIos / 2, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: Size.touchIos / 2, style: .continuous)
                         .strokeBorder(focused ? theme.palette.focus : theme.palette.lineStrong, lineWidth: focused ? Size.focusRing : Size.stroke))
+                    // Mic icon 12 pt from the field's right border (44 pt tap area, 20 pt icon centred in it).
+                    .overlay(alignment: .bottomTrailing) { micButton }
                 Button(action: send) {
                     Image("qs.send").resizable().frame(width: Size.iconM, height: Size.iconM)
                         .foregroundStyle(canSend ? theme.palette.onAccent : theme.palette.disabledInk)

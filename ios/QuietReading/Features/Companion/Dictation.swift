@@ -20,7 +20,7 @@ final class Dictation {
     func start() async {
         guard state != .listening else { return }
         guard let recognizer, recognizer.isAvailable else { state = .unavailable; return }
-        let speech = await withCheckedContinuation { c in SFSpeechRecognizer.requestAuthorization { c.resume(returning: $0) } }
+        let speech = await SpeechBridge.authorize()
         let mic = await AVAudioApplication.requestRecordPermission()
         guard speech == .authorized, mic else { state = .denied; return }
 
@@ -34,19 +34,16 @@ final class Dictation {
         if recognizer.supportsOnDeviceRecognition { request.requiresOnDeviceRecognition = true }
         self.request = request
 
-        let input = engine.inputNode
-        let format = input.outputFormat(forBus: 0)
-        input.removeTap(onBus: 0)
-        input.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in request.append(buffer) }
+        SpeechBridge.installTap(on: engine.inputNode, feeding: request)
         engine.prepare()
         do { try engine.start() } catch { state = .unavailable; return }
         state = .listening
 
-        task = recognizer.recognitionTask(with: request) { [weak self] result, error in
+        task = SpeechBridge.recognize(with: recognizer, request: request) { [weak self] text, done in
             Task { @MainActor in
                 guard let self else { return }
-                if let result { self.text = result.bestTranscription.formattedString }
-                if error != nil || (result?.isFinal ?? false) { self.stop() }
+                if let text { self.text = text }
+                if done { self.stop() }
             }
         }
     }
@@ -62,5 +59,26 @@ final class Dictation {
         task = nil
         state = .idle
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+    }
+}
+
+/// Speech and audio call back on background threads. These helpers are nonisolated so their
+/// closures never assume the main thread (that assumption crashed the app on the first mic tap).
+nonisolated private enum SpeechBridge {
+    static func authorize() async -> SFSpeechRecognizerAuthorizationStatus {
+        await withCheckedContinuation { c in SFSpeechRecognizer.requestAuthorization { c.resume(returning: $0) } }
+    }
+
+    static func installTap(on input: AVAudioInputNode, feeding request: SFSpeechAudioBufferRecognitionRequest) {
+        let format = input.outputFormat(forBus: 0)
+        input.removeTap(onBus: 0)
+        input.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in request.append(buffer) }
+    }
+
+    static func recognize(with recognizer: SFSpeechRecognizer, request: SFSpeechAudioBufferRecognitionRequest,
+                          onUpdate: @escaping @Sendable (String?, Bool) -> Void) -> SFSpeechRecognitionTask {
+        recognizer.recognitionTask(with: request) { result, error in
+            onUpdate(result?.bestTranscription.formattedString, error != nil || (result?.isFinal ?? false))
+        }
     }
 }
