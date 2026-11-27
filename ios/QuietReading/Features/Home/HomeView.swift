@@ -274,6 +274,10 @@ struct HomeView: View {
                 }
                 .padding(.vertical, Space.s4) // room for the cover shadow
             }
+            // Edge to edge of the app's area, never into the Duo's clock / Wi-Fi column.
+            .contentMargins(.horizontal, Space.s20, for: .scrollContent)
+            .padding(.horizontal, -Space.s20)
+            .clipped()
         }
     }
 }

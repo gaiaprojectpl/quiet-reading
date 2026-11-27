@@ -144,7 +144,11 @@ struct LibraryView: View {
                     }
                 }
             }
-            .scrollClipDisabled()
+            // Scroll edge to edge of the app's area, but never into the Duo's clock / Wi-Fi column.
+            .contentMargins(.horizontal, Space.s20, for: .scrollContent)
+            .padding(.horizontal, -Space.s20)
+            // Scroll views draw into safe areas by default; stop at the app's edge.
+            .clipped()
             // Keep the selected shelf in view, gliding to it.
             .onChange(of: shelf, initial: true) { _, s in
                 withAnimation(reduceMotion ? nil : .easeOut(duration: Motion.base)) { proxy.scrollTo(s, anchor: .center) }

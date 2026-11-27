@@ -11,7 +11,7 @@ struct QsChip: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: Space.s8) {
+            HStack(spacing: Space.s6) {
                 if let icon = icon ?? (isSelected ? "qs.check" : nil) {
                     Image(icon)
                         .resizable()
@@ -23,13 +23,15 @@ struct QsChip: View {
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(theme.palette.ink)
             }
-            .padding(.horizontal, Space.s16)
-            .padding(.vertical, Space.s8)
-            .frame(minHeight: Size.touchIos)
+            // Compact pill (about 32 pt); the tap area below stays 44 pt.
+            .padding(.horizontal, Space.s12)
+            .padding(.vertical, Space.s6)
+            .frame(minHeight: Size.buttonSmall - Space.s8)
             .background(isSelected ? theme.palette.soft2 : .clear, in: Capsule())
             .overlay(Capsule().strokeBorder(isSelected ? theme.palette.accent : theme.palette.line,
                                             lineWidth: isSelected ? 1.5 : Size.stroke))
-            .contentShape(Capsule())
+            .frame(minHeight: Size.touchIos)
+            .contentShape(Rectangle())
         }
         .buttonStyle(QsPressStyle())
         .gentleAnimation(isSelected, duration: Motion.fast)
