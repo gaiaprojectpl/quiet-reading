@@ -87,7 +87,7 @@ private struct MainTabs: View {
             case .home: HomeView(onSeeAll: { tab = .library }, onAddBook: { showAdd = true }, onImport: { showImport = true })
             case .library: LibraryView(onAddBook: { showAdd = true }, onImport: { showImport = true })
             case .add: EmptyView() // Add is a sheet, never a tab
-            case .stats: StatsView()
+            case .stats: StatsView(onAddBook: { showAdd = true })
             case .settings: SettingsView(onImport: { showImport = true })
             }
         }

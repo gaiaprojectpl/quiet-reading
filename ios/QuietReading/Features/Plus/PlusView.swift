@@ -118,7 +118,7 @@ struct PlusView: View {
         VStack(alignment: .leading, spacing: Space.s12) {
             benefit("qs.palette", "3 extra app themes")
             benefit("qs.widgets", "20+ widget styles: Soft, Modern, Colourful", soon: true)
-            benefit("qs.stats", "Patterns: moods, pace, time of day", soon: true)
+            benefit("qs.stats", "Patterns: moods, pace, time of day")
             benefit("qs.pencil", "Pencil margin notes on iPhone Duo", soon: true)
         }
     }

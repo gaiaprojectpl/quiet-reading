@@ -87,7 +87,7 @@ struct SettingsView: View {
                 case .sources: SourcesView(onImport: onImport)
                 }
             }
-            .sheet(isPresented: $editingGoal) { GoalSheet(goal: $goal) }
+            .sheet(isPresented: $editingGoal) { GoalSheet(goal: $goal, finishedThisYear: finishedThisYear) }
             .sheet(isPresented: $editingReminder) {
                 ReminderSheet(minutes: $reminderMinutes) {
                     if reminderOn { ReminderScheduler.schedule(minutes: reminderMinutes, book: currentBook) }
@@ -473,46 +473,6 @@ struct SourcesView: View {
 }
 
 // MARK: - Goal & reminder sheets
-
-private struct GoalSheet: View {
-    @Binding var goal: Int
-    @Environment(\.theme) private var theme
-    @Environment(\.dismiss) private var dismiss
-    @State private var value: Int?
-    @FocusState private var focused: Bool
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Space.s16) {
-            Text("Reading goal").font(theme.headline(24, relativeTo: .title2)).foregroundStyle(theme.palette.ink)
-                .accessibilityAddTraits(.isHeader)
-            Text("How many books would you like to read this year? You can change it any time, and missing it is fine.")
-                .font(.subheadline).foregroundStyle(theme.palette.ink2)
-            HStack {
-                TextField("Books", value: $value, format: .number)
-                    .keyboardType(.numberPad).focused($focused)
-                    .font(theme.headline(20, relativeTo: .title3))
-                Text("books this year").foregroundStyle(theme.palette.ink2)
-            }
-            .padding(.horizontal, Space.s16)
-            .frame(minHeight: Size.field)
-            .background(theme.palette.surface, in: RoundedRectangle(cornerRadius: theme.radii.field, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: theme.radii.field, style: .continuous).strokeBorder(theme.palette.lineStrong, lineWidth: Size.stroke))
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, Space.s20)
-        .padding(.top, Space.s24)
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            Button("Save") { goal = max(0, value ?? 0); dismiss() }
-                .buttonStyle(QsButtonStyle(priority: .primary))
-                .padding(.horizontal, Space.s20)
-                .padding(.bottom, QsLayout.actionsAboveBottomLine)
-        }
-        .background(theme.palette.surface.ignoresSafeArea())
-        .presentationDetents([.medium])
-        .presentationCornerRadius(theme.radii.sheet)
-        .onAppear { value = goal > 0 ? goal : nil; focused = true }
-    }
-}
 
 private struct ReminderSheet: View {
     @Binding var minutes: Int
