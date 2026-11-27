@@ -17,6 +17,9 @@ struct HomeView: View {
     @Environment(NotificationCenterModel.self) private var debugNotifications
     #endif
     @Environment(\.duoLayout) private var duo
+    @Environment(\.modelContext) private var context
+    @Environment(WidgetRouter.self) private var router
+    @State private var path: [Book] = []
 
     private var current: Book? {
         #if DEBUG
@@ -46,7 +49,7 @@ struct HomeView: View {
                     .buttonStyle(QsButtonStyle(priority: .text))
             }
         } else {
-            NavigationStack {
+            NavigationStack(path: $path) {
                 Group {
                     switch duo.mode {
                     case .book: bookLayout
@@ -66,6 +69,17 @@ struct HomeView: View {
             }
             .fullScreenCover(item: $finishing) { book in
                 FinishFlow(book: book)
+            }
+            // From a widget: "+" / "Update" opens the page update; a tap on the book opens its details.
+            .onChange(of: router.updateBookID, initial: true) { _, id in
+                guard let id else { return }
+                router.updateBookID = nil
+                if let book = WidgetSync.book(for: id, in: context) { path = []; updating = book }
+            }
+            .onChange(of: router.openBookID, initial: true) { _, id in
+                guard let id else { return }
+                router.openBookID = nil
+                if let book = WidgetSync.book(for: id, in: context) { path = [book] }
             }
             .fullScreenCover(isPresented: $choosingNext) {
                 NavigationStack { WhatNextView(onDone: { choosingNext = false }) }

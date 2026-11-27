@@ -18,6 +18,10 @@ struct RootView: View {
     @State private var notifications = NotificationCenterModel()
     @State private var connectivity = Connectivity()
     @State private var plus = PlusAccess()
+    @State private var router = WidgetRouter()
+    @Query private var allBooks: [Book]
+    @AppStorage(ProfileKeys.goal) private var goal = 0
+    @Environment(\.scenePhase) private var scenePhase
     @AppStorage(ProfileKeys.lastImport) private var lastImport = 0.0
     @AppStorage(ProfileKeys.lastImportSource) private var lastImportSource = ""
     @Environment(\.modelContext) private var context
@@ -32,6 +36,14 @@ struct RootView: View {
         if let preview = plus.previewTheme, !plus.isUnlocked { return preview }
         if chosenTheme.requiresPlus && !plus.isUnlocked { return .peachSage }
         return chosenTheme
+    }
+
+    /// Changes whenever something a widget shows changes.
+    private var widgetSignature: String {
+        let latest = allBooks.map(\.lastUpdated).max()?.timeIntervalSince1970 ?? 0
+        let pages = allBooks.reduce(0) { $0 + $1.currentPage }
+        let covers = allBooks.filter { $0.coverData != nil }.count
+        return "\(allBooks.count)-\(latest)-\(pages)-\(covers)-\(goal)-\(chosenTheme.rawValue)-\(forceHighContrast)-\(plus.isUnlocked)"
     }
 
     var body: some View {
@@ -64,8 +76,16 @@ struct RootView: View {
         .onChange(of: reading.first.map { "\($0.persistentModelID.hashValue)-\($0.currentPage)" }) {
             ReminderScheduler.refresh(book: reading.first)
         }
+        // Widgets: keep them in step with the books, goal and theme; follow widget taps.
+        .task(id: widgetSignature) {
+            WidgetSync.update(books: allBooks, goal: goal, theme: chosenTheme.requiresPlus && !plus.isUnlocked ? .peachSage : chosenTheme,
+                              forceHighContrast: forceHighContrast, isPlus: plus.isUnlocked)
+        }
+        .onOpenURL { router.handle($0) }
+        .onChange(of: scenePhase, initial: true) { _, phase in if phase == .active { router.checkPendingUpdate() } }
         .fullScreenCover(isPresented: Bindable(plus).showPaywall) { PlusView() }
         .environment(importSession)
+        .environment(router)
         .environment(connectivity)
         .environment(plus)
         .environment(notifications)
@@ -80,6 +100,7 @@ struct RootView: View {
 private struct MainTabs: View {
     @Environment(\.duoLayout) private var duo
     @Environment(PlusAccess.self) private var plus
+    @Environment(WidgetRouter.self) private var router
     @State private var tab: AppTab = .home
     @State private var showAdd = false
     @State private var showImport = false
@@ -107,6 +128,11 @@ private struct MainTabs: View {
         .animation(.easeOut(duration: Motion.base), value: plus.previewTheme)
         // Trying on a theme shows it where it matters most: Home.
         .onChange(of: plus.previewTheme) { _, new in if new != nil { tab = .home } }
+        // Widget taps land on Home (the book or its Update sheet), Add or Stats.
+        .onChange(of: router.updateBookID) { _, id in if id != nil { tab = .home } }
+        .onChange(of: router.openBookID) { _, id in if id != nil { tab = .home } }
+        .onChange(of: router.openAdd) { _, open in if open { router.openAdd = false; showAdd = true } }
+        .onChange(of: router.openStats) { _, open in if open { router.openStats = false; tab = .stats } }
         .modifier(Navigation(duo: duo, tab: $tab, onAdd: { showAdd = true }))
         .sheet(isPresented: $showAdd, onDismiss: {
             if let mode = pendingAdd { pendingAdd = nil; addFlow = AddFlowItem(mode: mode) }

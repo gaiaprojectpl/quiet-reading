@@ -17,7 +17,9 @@ Brand is standalone (not Ibexa). Pastel, delicate, aimed at women readers. **WCA
 ## Repo layout
 ```
 ios/QuietReading.xcodeproj   Xcode 27 project (new text format project.xcproj, folder-synced: files in ios/QuietReading/ are picked up automatically)
-ios/QuietReading/            App/, DesignSystem/ (Tokens.generated.swift, Theme.swift, Components/), Features/<Area>/
+ios/QuietReading/            App/, DesignSystem/ (Components/, layout, motion), Features/<Area>/, Data/
+ios/Shared/                  used by app AND widgets: Tokens.generated.swift, Theme.swift, QsFonts + Fonts/, WidgetSnapshot (App Group data + UpdateBookIntent)
+ios/QuietReadingWidgets/     widget extension (Reading now, Goal; Lock Screen/StandBy). App writes widget.json to group.app.quietreading, widget only reads
 android/                     Gradle project, module :app, package app.quietreading
 android/app/src/main/java/app/quietreading/   designsystem/ (Tokens.generated.kt, QsTheme.kt, components/), feature/, MainActivity.kt
 design-tokens/tokens.json    exported from Figma variables

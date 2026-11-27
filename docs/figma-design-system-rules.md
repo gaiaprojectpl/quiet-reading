@@ -40,7 +40,7 @@ Theme previews (F/C/D/E): `57:5791`. **Ignore the "Earlier static screens" frame
 
 **Source:** `design-tokens/tokens.json`, exported by hand from the Figma variable collections *App themes*, *Spacing* and *Foundations*.
 **Transform:** `python3 tools/generate_tokens.py` writes
-- `ios/QuietReading/DesignSystem/Tokens.generated.swift`
+- `ios/Shared/Tokens.generated.swift`
 - `android/app/src/main/java/app/quietreading/designsystem/Tokens.generated.kt`
 
 Never edit `*.generated.*` files. To change a token, edit `tokens.json` (or re-export from Figma) and run the script again.
@@ -104,7 +104,7 @@ On iOS, always use `RoundedRectangle(cornerRadius:style: .continuous)`, which ma
 ### Not tokenised yet (known gaps)
 - **Typography** has no tokens. Body text uses system text styles: iOS `.body`, `.subheadline`, `.footnote`… (these support Dynamic Type); Android uses `sp` values from the Figma text style. Headings use the theme serif: iOS `theme.headline(size, relativeTo: .title2)`, Android `fontFamily = QsTheme.headFamily`. If Figma uses a text style, use its size and add a comment with the style name. Suggest adding type tokens to Kaja instead of inventing a scale.
 - **Icon-circle sizes** (80 in EmptyState) and some icon sizes are hard-coded in the current components. Do not copy that. Use `Size.*` or ask for a token.
-- Heading fonts (Newsreader, Fraunces, Lora, Playfair Display) are bundled on iOS in `ios/QuietReading/Resources/Fonts/` (variable TTFs + OFL licences) and registered at launch by `QsFonts.register()` (the target generates its Info.plist, so there's no `UIAppFonts`). Android still falls back to `FontFamily.Serif`.
+- Heading fonts (Newsreader, Fraunces, Lora, Playfair Display) are bundled on iOS in `ios/Shared/Fonts/` (variable TTFs + OFL licences) and registered at launch by `QsFonts.register()` (the target generates its Info.plist, so there's no `UIAppFonts`). Android still falls back to `FontFamily.Serif`.
 
 ## 2. Components
 
@@ -166,7 +166,7 @@ Layout translation from the Figma MCP output:
 - Android: `android/app/src/main/res/drawable/` as VectorDrawable XML. Use `drawable-nodpi` WebP only for raster images.
 - Figma page 🖼️ Graphics is the source. Export with the Figma MCP `download_assets` and convert SVG → VectorDrawable for Android. Do not reference Figma localhost/asset URLs in code.
 - Book covers are remote (Hardcover / Open Library / Google Books) and loaded at runtime. Show a `disabledBg` placeholder with radius `radii.cover` until the cover loads. No image library has been added yet. Ask before adding one (e.g. Coil on Android).
-- Fonts: iOS in `ios/QuietReading/Resources/Fonts/` (any `.ttf` there is registered automatically). Android fonts will go in `res/font/` and replace `QsTheme.headFamily`. Use OFL files only and keep each licence file next to its font.
+- Fonts: iOS in `ios/Shared/Fonts/` (any `.ttf` there is registered automatically). Android fonts will go in `res/font/` and replace `QsTheme.headFamily`. Use OFL files only and keep each licence file next to its font.
 
 ## 5. Icons
 

@@ -6,7 +6,7 @@ Generate native design tokens from design-tokens/tokens.json.
 
 Run from the repo root:  python3 tools/generate_tokens.py
 Outputs (do not edit by hand):
-  ios/QuietReading/DesignSystem/Tokens.generated.swift
+  ios/Shared/Tokens.generated.swift
   android/app/src/main/java/app/quietreading/designsystem/Tokens.generated.kt
 """
 import json, pathlib
@@ -56,7 +56,7 @@ sw += swift_enum("Space", T["space"]) + [""] + swift_enum("Size", T["size"]) + [
 sw += ["/// Durations in seconds.", "nonisolated public enum Motion {"] + [f"    public static let {k}: Double = {v/1000}" for k, v in T["motion"].items()] + ["}", ""]
 sw += swift_enum("Opacity", T["opacity"], "Double")
 
-ios = ROOT / "ios/QuietReading/DesignSystem/Tokens.generated.swift"
+ios = ROOT / "ios/Shared/Tokens.generated.swift"
 ios.parent.mkdir(parents=True, exist_ok=True); ios.write_text("\n".join(sw) + "\n")
 
 # ---------- Kotlin ----------
