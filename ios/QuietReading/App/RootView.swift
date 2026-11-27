@@ -16,6 +16,9 @@ struct RootView: View {
     @State private var importSession = ImportSession()
     @State private var notifications = NotificationCenterModel()
     @State private var connectivity = Connectivity()
+    @State private var plus = PlusAccess()
+    @AppStorage(ProfileKeys.lastImport) private var lastImport = 0.0
+    @AppStorage(ProfileKeys.lastImportSource) private var lastImportSource = ""
     @Environment(\.modelContext) private var context
 
     private var resolvedTheme: ThemeID {
@@ -44,12 +47,16 @@ struct RootView: View {
         }
         .onChange(of: importSession.phase) { _, phase in
             if phase == .finished, importSession.total > 0 {
+                lastImport = Date.now.timeIntervalSince1970
+                lastImportSource = importSession.sourceName
                 notifications.show(String(localized: "Your library is ready"),
                                    message: String(localized: "\(importSession.total) books"))
             }
         }
+        .fullScreenCover(isPresented: Bindable(plus).showPaywall) { PlusView() }
         .environment(importSession)
         .environment(connectivity)
+        .environment(plus)
         .environment(notifications)
         #if DEBUG
         .modifier(DuoProbe())
@@ -76,7 +83,7 @@ private struct MainTabs: View {
             case .library: LibraryView(onAddBook: { showAdd = true }, onImport: { showImport = true })
             case .add: EmptyView() // Add is a sheet, never a tab
             case .stats: StatsView()
-            case .settings: SettingsView()
+            case .settings: SettingsView(onImport: { showImport = true })
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -96,6 +103,7 @@ private struct MainTabs: View {
         .task {
             switch UserDefaults.standard.string(forKey: "qsOpen") {
             case "library": tab = .library
+            case "settings", "stats": tab = UserDefaults.standard.string(forKey: "qsOpen") == "stats" ? .stats : .settings
             case "add": showAdd = true
             case "addtype": addFlow = AddFlowItem(mode: .type)
             case "addcover": addFlow = AddFlowItem(mode: .cover)
@@ -126,11 +134,13 @@ private struct MainTabs: View {
                             .ignoresSafeArea(edges: .bottom)
                     }
             } else {
-                content
-                    .duoTopSpacing(duo)
-                    .safeAreaInset(edge: .bottom, spacing: 0) {
-                        QsTabBar(selection: $tab, onAdd: onAdd)
-                    }
+                // Stacked (not an inset) so buttons pinned to the bottom of a screen sit above the bar.
+                VStack(spacing: 0) {
+                    content
+                        .duoTopSpacing(duo)
+                        .frame(maxHeight: .infinity)
+                    QsTabBar(selection: $tab, onAdd: onAdd)
+                }
             }
         }
     }

@@ -6,6 +6,8 @@ struct QsListRow: View {
     let icon: String
     let title: LocalizedStringKey
     var subtitle: LocalizedStringKey?
+    /// Current value shown before the chevron ("Peach & Sage", "30 books").
+    var value: String? = nil
     /// nil = information only: no chevron, not tappable.
     var action: (() -> Void)?
     @Environment(\.theme) private var theme
@@ -39,6 +41,9 @@ struct QsListRow: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                if let value {
+                    Text(value).font(.subheadline).foregroundStyle(theme.palette.ink2)
+                }
                 if chevron {
                     Image("qs.chevron")
                         .resizable()

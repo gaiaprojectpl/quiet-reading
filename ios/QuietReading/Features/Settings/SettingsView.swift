@@ -1,88 +1,536 @@
 import SwiftUI
+import SwiftData
+import PhotosUI
 
+/// Flow 4 · Settings & profile.
 struct SettingsView: View {
-    @AppStorage(ThemeStorage.key) private var chosenTheme: ThemeID = .peachSage
-    @Environment(\.theme) private var theme
-    @Environment(\.duoLayout) private var duo
+    var onImport: () -> Void = {}
 
-    /// Night and High contrast follow the system settings (Dark Mode, Increase Contrast).
-    private let pickable: [ThemeID] = [.peachSage, .clayCream, .blushIvory, .lavenderMist]
+    @Environment(\.theme) private var theme
+    @Environment(\.modelContext) private var context
+    @Environment(PlusAccess.self) private var plus
+    @Query private var books: [Book]
+
+    @AppStorage(ThemeStorage.key) private var chosenTheme: ThemeID = .peachSage
+    @AppStorage(ProfileKeys.name) private var name = ""
+    @AppStorage(ProfileKeys.handle) private var handle = ""
+    @AppStorage(ProfileKeys.goal) private var goal = 0
+    @AppStorage(ProfileKeys.reminderOn) private var reminderOn = false
+    @AppStorage(ProfileKeys.reminderMinutes) private var reminderMinutes = 20 * 60 + 30
+    @AppStorage(ProfileKeys.appIcon) private var appIcon = "green"
+    @AppStorage(ProfileKeys.lastImport) private var lastImport = 0.0
+    @AppStorage(ProfileKeys.lastImportSource) private var lastImportSource = ""
+    @AppStorage(OnboardingStorage.key) private var onboardingDone = true
+
+    @State private var path: [Page] = []
+    @State private var editingGoal = false
+    @State private var editingReminder = false
+    @State private var confirmDelete = false
+    @State private var avatar: UIImage?
+
+    enum Page: Hashable { case profile, theme, icon, sources }
+
+    private var finishedThisYear: Int {
+        let year = Calendar.current.component(.year, from: .now)
+        return books.filter { $0.status == .read && $0.dateFinished.map { Calendar.current.component(.year, from: $0) == year } == true }.count
+    }
+
+    private var currentBook: Book? { books.filter { $0.status == .reading }.max { $0.lastUpdated < $1.lastUpdated } }
 
     var body: some View {
-        if duo.mode == .book {
-            // Duo open: settings on the left page, nothing across the fold.
-            HStack(spacing: duo.fold.width) {
-                settings.frame(width: duo.fold.minX)
-                DuoIllustrationPage()
+        NavigationStack(path: $path) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: Space.s16) {
+                    ScreenTitle(title: "Settings")
+                    profileCard
+                    section("Appearance") {
+                        QsListRow(icon: "qs.palette", title: "App theme", value: chosenTheme.displayName) { path.append(.theme) }
+                        QsListRow(icon: "qs.logo", title: "App icon", value: AppIconChoice(rawValue: appIcon)?.name ?? "") { path.append(.icon) }
+                        QsListRow(icon: "qs.target", title: "Reading goal",
+                                  value: goal > 0 ? String(localized: "\(goal) books") : String(localized: "Not set")) { editingGoal = true }
+                    }
+                    section("Reading") {
+                        reminderRow
+                        QsListRow(icon: "qs.link", title: "Sources", subtitle: LocalizedStringKey(sourcesLine)) { path.append(.sources) }
+                    }
+                    section("Quiet Reading Plus") {
+                        QsListRow(icon: "qs.crown", title: "Quiet Reading Plus",
+                                  subtitle: plus.isUnlocked ? "Thank you. Everything is unlocked." : "Three more themes and icons, one payment") {
+                            plus.showPaywall = true
+                        }
+                    }
+                    section("Your data") {
+                        ShareLink(items: DataExport.files(books: books)) {
+                            QsListRowLabel(icon: "qs.file", title: "Export my data", subtitle: "Books and quotes as CSV files")
+                        }
+                        .buttonStyle(.plain)
+                        Button { confirmDelete = true } label: {
+                            QsListRowLabel(icon: "qs.trash", title: "Delete everything on this phone", destructive: true)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    Text("Your books stay on this phone. Accounts and sync come later, and they’ll always be optional.")
+                        .font(.footnote)
+                        .foregroundStyle(theme.palette.ink2)
+                }
+                .padding(.horizontal, Space.s20)
+                .padding(.top, Space.s16)
+                .padding(.bottom, Space.s40)
             }
             .background(theme.palette.bg.ignoresSafeArea())
-        } else {
-            settings
+            .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(for: Page.self) { page in
+                switch page {
+                case .profile: ProfileEditView()
+                case .theme: ThemePickerView()
+                case .icon: AppIconView()
+                case .sources: SourcesView(onImport: onImport)
+                }
+            }
+            .sheet(isPresented: $editingGoal) { GoalSheet(goal: $goal) }
+            .sheet(isPresented: $editingReminder) {
+                ReminderSheet(minutes: $reminderMinutes) {
+                    if reminderOn { ReminderScheduler.schedule(minutes: reminderMinutes, book: currentBook) }
+                }
+            }
+            .alert("Delete everything on this phone?", isPresented: $confirmDelete) {
+                Button("Cancel", role: .cancel) {}
+                Button("Delete", role: .destructive, action: deleteEverything)
+            } message: {
+                Text("Your books, progress, quotes and notes will be deleted. This can’t be undone.")
+            }
+            .onAppear { avatar = Avatar.load() }
+            #if DEBUG
+            // Test builds only: `-qsSettings profile | icon | theme`.
+            .task {
+                switch UserDefaults.standard.string(forKey: "qsSettings") {
+                case "profile": path = [.profile]
+                case "icon": path = [.icon]
+                case "theme": path = [.theme]
+                default: break
+                }
+            }
+            #endif
         }
     }
 
-    private var settings: some View {
-        NavigationStack {
-            List {
-                Section {
+    // MARK: Parts
+
+    private var profileCard: some View {
+        Button { path.append(.profile) } label: {
+            HStack(spacing: Space.s16) {
+                AvatarView(image: avatar, name: name, size: 56)
+                VStack(alignment: .leading, spacing: Space.s2) {
+                    Text(name.isEmpty ? String(localized: "Add your name") : name)
+                        .font(theme.headline(22, relativeTo: .title2))
+                        .foregroundStyle(theme.palette.ink)
+                    if !handle.isEmpty {
+                        Text("@\(handle)").font(.footnote).foregroundStyle(theme.palette.ink2)
+                    }
+                    Text(String(localized: "\(finishedThisYear) books in \(String(Calendar.current.component(.year, from: .now)))"))
+                        .font(.footnote).foregroundStyle(theme.palette.ink2)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Image("qs.chevron").resizable().frame(width: Size.iconS + 2, height: Size.iconS + 2)
+                    .foregroundStyle(theme.palette.ink2).accessibilityHidden(true)
+            }
+            .padding(Space.s16)
+            .background(theme.palette.surface, in: RoundedRectangle(cornerRadius: theme.radii.card, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: theme.radii.card, style: .continuous).strokeBorder(theme.palette.line, lineWidth: Size.stroke))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(QsPressStyle())
+        .accessibilityHint("Edit profile")
+    }
+
+    private var reminderRow: some View {
+        HStack(spacing: Space.s16) {
+            Image("qs.bell").resizable().frame(width: Size.iconM + 2, height: Size.iconM + 2)
+                .foregroundStyle(theme.palette.accentInk)
+                .frame(width: Space.s40, height: Space.s40)
+                .background(theme.palette.soft2, in: RoundedRectangle(cornerRadius: theme.radii.field, style: .continuous))
+                .accessibilityHidden(true)
+            Button { editingReminder = true } label: {
+                VStack(alignment: .leading, spacing: Space.s2) {
+                    Text("Daily reminder").font(.body.weight(.medium)).foregroundStyle(theme.palette.ink)
+                    Text(timeText).font(.footnote).foregroundStyle(theme.palette.ink2)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Change the time")
+            Toggle("Daily reminder", isOn: $reminderOn)
+                .labelsHidden()
+                .tint(theme.palette.accent)
+        }
+        .padding(Space.s16)
+        .onChange(of: reminderOn) { _, on in
+            Task {
+                if on {
+                    if await ReminderScheduler.requestPermission() {
+                        ReminderScheduler.schedule(minutes: reminderMinutes, book: currentBook)
+                    } else {
+                        reminderOn = false
+                    }
+                } else {
+                    ReminderScheduler.cancel()
+                }
+            }
+        }
+    }
+
+    private var timeText: String {
+        var c = DateComponents(); c.hour = reminderMinutes / 60; c.minute = reminderMinutes % 60
+        return (Calendar.current.date(from: c) ?? .now).formatted(date: .omitted, time: .shortened)
+    }
+
+    private var sourcesLine: String {
+        guard lastImport > 0 else { return String(localized: "Import from Goodreads or StoryGraph") }
+        let when = Date(timeIntervalSince1970: lastImport).formatted(.relative(presentation: .named))
+        return String(localized: "\(lastImportSource) · imported \(when)")
+    }
+
+    private func section<C: View>(_ title: LocalizedStringKey, @ViewBuilder content: () -> C) -> some View {
+        VStack(alignment: .leading, spacing: Space.s8) {
+            Text(title)
+                .textCase(.uppercase)
+                .font(.caption.weight(.semibold))
+                .tracking(0.72)
+                .foregroundStyle(theme.palette.ink2)
+                .accessibilityAddTraits(.isHeader)
+            QsListCard { content() }
+        }
+    }
+
+    private func deleteEverything() {
+        for b in books { context.delete(b) }
+        try? context.save()
+        Avatar.save(nil)
+        for key in [ProfileKeys.name, ProfileKeys.handle, ProfileKeys.about, ProfileKeys.goal, ProfileKeys.lastImport, ProfileKeys.lastImportSource] {
+            UserDefaults.standard.removeObject(forKey: key)
+        }
+        ReminderScheduler.cancel()
+        reminderOn = false
+        onboardingDone = false
+    }
+}
+
+/// A list-row look for ShareLink / Button labels inside a `QsListCard`.
+struct QsListRowLabel: View {
+    let icon: String
+    let title: LocalizedStringKey
+    var subtitle: LocalizedStringKey?
+    var destructive = false
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        HStack(spacing: Space.s16) {
+            Image(icon).resizable().frame(width: Size.iconM + 2, height: Size.iconM + 2)
+                .foregroundStyle(destructive ? theme.palette.error : theme.palette.accentInk)
+                .frame(width: Space.s40, height: Space.s40)
+                .background(destructive ? theme.palette.errorSoft : theme.palette.soft2,
+                            in: RoundedRectangle(cornerRadius: theme.radii.field, style: .continuous))
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: Space.s2) {
+                Text(title).font(.body.weight(.medium)).foregroundStyle(destructive ? theme.palette.error : theme.palette.ink)
+                if let subtitle { Text(subtitle).font(.footnote).foregroundStyle(theme.palette.ink2) }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(Space.s16)
+        .contentShape(Rectangle())
+    }
+}
+
+/// Round profile photo, or the reader's initial on soft.
+struct AvatarView: View {
+    let image: UIImage?
+    let name: String
+    let size: CGFloat
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        Group {
+            if let image {
+                Image(uiImage: image).resizable().scaledToFill()
+            } else {
+                Text(name.first.map { String($0).uppercased() } ?? "")
+                    .font(theme.headline(size * 0.42, relativeTo: .title))
+                    .foregroundStyle(theme.palette.accentInk)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(theme.palette.soft)
+            }
+        }
+        .frame(width: size, height: size)
+        .clipShape(Circle())
+        .accessibilityHidden(true)
+    }
+}
+
+// MARK: - App theme
+
+struct ThemePickerView: View {
+    @AppStorage(ThemeStorage.key) private var chosenTheme: ThemeID = .peachSage
+    @Environment(\.theme) private var theme
+    @Environment(PlusAccess.self) private var plus
+    private let pickable: [ThemeID] = [.peachSage, .clayCream, .blushIvory, .lavenderMist]
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: Space.s16) {
+                HStack { QsBackButton(title: "Settings"); Spacer() }
+                ScreenTitle(title: "App theme")
+                QsListCard {
                     ForEach(pickable, id: \.self) { id in
                         Button {
-                            chosenTheme = id
+                            if id.requiresPlus && !plus.isUnlocked { plus.showPaywall = true } else { chosenTheme = id }
                         } label: {
                             HStack(spacing: Space.s12) {
                                 ThemeSwatch(id: id)
-                                Text(id.displayName)
-                                    .foregroundStyle(theme.palette.ink)
-                                if id.requiresPlus {
-                                    Text("Plus")
-                                        .font(.caption.weight(.semibold))
-                                        .foregroundStyle(theme.palette.accentInk)
-                                        .padding(.horizontal, Space.s8)
-                                        .padding(.vertical, Space.s2)
-                                        .background(theme.palette.soft, in: Capsule())
-                                }
+                                Text(id.displayName).font(.body).foregroundStyle(theme.palette.ink)
+                                if id.requiresPlus { PlusBadge() }
                                 Spacer()
                                 if id == chosenTheme {
-                                    Image(systemName: "checkmark")
+                                    Image("qs.check").resizable().frame(width: Size.iconM, height: Size.iconM)
                                         .foregroundStyle(theme.palette.accentInk)
-                                        .accessibilityLabel("Selected")
                                 }
                             }
+                            .padding(Space.s16)
                             .frame(minHeight: Size.touchIos)
+                            .contentShape(Rectangle())
                         }
+                        .buttonStyle(.plain)
+                        .accessibilityAddTraits(id == chosenTheme ? [.isSelected] : [])
                     }
-                } header: {
-                    Text("App theme")
-                } footer: {
-                    Text("Dark Mode uses Night and Increase Contrast uses High contrast. Both are always free.")
                 }
+                Text("Dark Mode uses Night and Increase Contrast uses High contrast. Both are always free.")
+                    .font(.footnote).foregroundStyle(theme.palette.ink2)
             }
-            .scrollContentBackground(.hidden)
-            .background(theme.palette.bg.ignoresSafeArea())
-            .safeAreaInset(edge: .top) {
-                ScreenTitle(title: "Settings")
-                    .padding(.horizontal, Space.s20)
-                    .padding(.top, Space.s16)
-                    .background(theme.palette.bg)
-            }
-            .toolbar(.hidden, for: .navigationBar)
+            .padding(.horizontal, Space.s20)
+            .padding(.top, Space.s8)
+            .gentleAnimation(chosenTheme)
         }
+        .background(theme.palette.bg.ignoresSafeArea())
+        .toolbar(.hidden, for: .navigationBar)
+    }
+}
+
+struct PlusBadge: View {
+    @Environment(\.theme) private var theme
+    var body: some View {
+        Text("Plus")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(theme.palette.accentInk)
+            .padding(.horizontal, Space.s8)
+            .padding(.vertical, Space.s2)
+            .background(theme.palette.soft2, in: Capsule())
     }
 }
 
 private struct ThemeSwatch: View {
     let id: ThemeID
+    @Environment(\.theme) private var theme
     var body: some View {
-        HStack(spacing: 0) {
-            id.palette.bg
-            id.palette.soft
-            id.palette.accent
-        }
-        .frame(width: 36, height: 24)
-        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(id.palette.line))
-        .accessibilityHidden(true)
+        HStack(spacing: 0) { id.palette.bg; id.palette.soft; id.palette.accent }
+            .frame(width: Space.s32 + Space.s4, height: Space.s24)
+            .clipShape(RoundedRectangle(cornerRadius: theme.radii.inner - 2, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: theme.radii.inner - 2, style: .continuous).strokeBorder(id.palette.line))
+            .accessibilityHidden(true)
     }
 }
 
-#Preview { SettingsView() }
+// MARK: - App icon
+
+enum AppIconChoice: String, CaseIterable {
+    case green, clay, blush, lavender
+
+    var name: String {
+        switch self {
+        case .green: String(localized: "Green")
+        case .clay: String(localized: "Clay")
+        case .blush: String(localized: "Blush")
+        case .lavender: String(localized: "Lavender")
+        }
+    }
+    var iconName: String? { self == .green ? nil : "AppIcon-" + rawValue.capitalized }
+    var preview: String { "icon.preview.\(rawValue)" }
+    var requiresPlus: Bool { self != .green }
+}
+
+struct AppIconView: View {
+    @AppStorage(ProfileKeys.appIcon) private var appIcon = "green"
+    @Environment(\.theme) private var theme
+    @Environment(PlusAccess.self) private var plus
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: Space.s16) {
+                HStack { QsBackButton(title: "Settings"); Spacer() }
+                ScreenTitle(title: "App icon")
+                Text("Choose how Quiet Reading looks on your Home Screen.")
+                    .font(.subheadline).foregroundStyle(theme.palette.ink2)
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: Space.s12), GridItem(.flexible())], spacing: Space.s12) {
+                    ForEach(AppIconChoice.allCases, id: \.self) { choice in tile(choice) }
+                }
+                Text("iOS shows a short message to confirm the change. Widgets stay where they are.")
+                    .font(.footnote).foregroundStyle(theme.palette.ink2)
+                Text("Plus icons come with Quiet Reading Plus. Without Plus, tapping one opens the Plus screen.")
+                    .font(.footnote).foregroundStyle(theme.palette.ink2)
+            }
+            .padding(.horizontal, Space.s20)
+            .padding(.top, Space.s8)
+            .gentleAnimation(appIcon)
+        }
+        .background(theme.palette.bg.ignoresSafeArea())
+        .toolbar(.hidden, for: .navigationBar)
+    }
+
+    private func tile(_ choice: AppIconChoice) -> some View {
+        let inUse = appIcon == choice.rawValue
+        return Button { pick(choice) } label: {
+            VStack(spacing: Space.s8) {
+                Image(choice.preview).resizable().frame(width: 64, height: 64)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .accessibilityHidden(true)
+                HStack(spacing: Space.s4) {
+                    Text(choice == .green ? String(localized: "Green · default") : choice.name)
+                        .font(.subheadline.weight(.medium)).foregroundStyle(theme.palette.ink)
+                    if choice.requiresPlus { PlusBadge() }
+                }
+                Text(inUse ? "✓ In use" : "Tap to use").font(.footnote).foregroundStyle(theme.palette.ink2)
+            }
+            .padding(Space.s16)
+            .frame(maxWidth: .infinity)
+            .background(theme.palette.surface, in: RoundedRectangle(cornerRadius: theme.radii.card - 4, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: theme.radii.card - 4, style: .continuous)
+                .strokeBorder(inUse ? theme.palette.accent : theme.palette.line, lineWidth: inUse ? 1.5 : Size.stroke))
+        }
+        .buttonStyle(QsPressStyle())
+        .accessibilityAddTraits(inUse ? [.isSelected] : [])
+    }
+
+    private func pick(_ choice: AppIconChoice) {
+        if choice.requiresPlus && !plus.isUnlocked { plus.showPaywall = true; return }
+        guard choice.rawValue != appIcon else { return }
+        UIApplication.shared.setAlternateIconName(choice.iconName) { error in
+            if error == nil { Task { @MainActor in appIcon = choice.rawValue } }
+        }
+    }
+}
+
+// MARK: - Sources
+
+struct SourcesView: View {
+    let onImport: () -> Void
+    @AppStorage(ProfileKeys.lastImport) private var lastImport = 0.0
+    @AppStorage(ProfileKeys.lastImportSource) private var lastImportSource = ""
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: Space.s16) {
+                HStack { QsBackButton(title: "Settings"); Spacer() }
+                ScreenTitle(title: "Sources")
+                if lastImport > 0 {
+                    QsListCard {
+                        QsListRow(icon: "qs.file", title: LocalizedStringKey(lastImportSource),
+                                  subtitle: LocalizedStringKey(String(localized: "Imported \(Date(timeIntervalSince1970: lastImport).formatted(date: .abbreviated, time: .shortened))")))
+                    }
+                }
+                Text("Import again any time. Books already on your shelf are skipped, so nothing doubles.")
+                    .font(.subheadline).foregroundStyle(theme.palette.ink2)
+                Button("Import a library", action: onImport)
+                    .buttonStyle(QsButtonStyle(priority: .secondary))
+            }
+            .padding(.horizontal, Space.s20)
+            .padding(.top, Space.s8)
+        }
+        .background(theme.palette.bg.ignoresSafeArea())
+        .toolbar(.hidden, for: .navigationBar)
+    }
+}
+
+// MARK: - Goal & reminder sheets
+
+private struct GoalSheet: View {
+    @Binding var goal: Int
+    @Environment(\.theme) private var theme
+    @Environment(\.dismiss) private var dismiss
+    @State private var value: Int?
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Space.s16) {
+            Text("Reading goal").font(theme.headline(24, relativeTo: .title2)).foregroundStyle(theme.palette.ink)
+                .accessibilityAddTraits(.isHeader)
+            Text("How many books would you like to read this year? You can change it any time, and missing it is fine.")
+                .font(.subheadline).foregroundStyle(theme.palette.ink2)
+            HStack {
+                TextField("Books", value: $value, format: .number)
+                    .keyboardType(.numberPad).focused($focused)
+                    .font(theme.headline(20, relativeTo: .title3))
+                Text("books this year").foregroundStyle(theme.palette.ink2)
+            }
+            .padding(.horizontal, Space.s16)
+            .frame(minHeight: Size.field)
+            .background(theme.palette.surface, in: RoundedRectangle(cornerRadius: theme.radii.field, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: theme.radii.field, style: .continuous).strokeBorder(theme.palette.lineStrong, lineWidth: Size.stroke))
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, Space.s20)
+        .padding(.top, Space.s24)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            Button("Save") { goal = max(0, value ?? 0); dismiss() }
+                .buttonStyle(QsButtonStyle(priority: .primary))
+                .padding(.horizontal, Space.s20)
+                .padding(.bottom, QsLayout.actionsAboveBottomLine)
+        }
+        .background(theme.palette.surface.ignoresSafeArea())
+        .presentationDetents([.medium])
+        .presentationCornerRadius(theme.radii.sheet)
+        .onAppear { value = goal > 0 ? goal : nil; focused = true }
+    }
+}
+
+private struct ReminderSheet: View {
+    @Binding var minutes: Int
+    let onSave: () -> Void
+    @Environment(\.theme) private var theme
+    @Environment(\.dismiss) private var dismiss
+    @State private var time = Date.now
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Space.s16) {
+            Text("Daily reminder").font(theme.headline(24, relativeTo: .title2)).foregroundStyle(theme.palette.ink)
+                .accessibilityAddTraits(.isHeader)
+            Text("One gentle reminder at the time you choose. Never more than once a day.")
+                .font(.subheadline).foregroundStyle(theme.palette.ink2)
+            DatePicker("Time", selection: $time, displayedComponents: .hourAndMinute)
+                .datePickerStyle(.wheel)
+                .labelsHidden()
+                .frame(maxWidth: .infinity)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, Space.s20)
+        .padding(.top, Space.s24)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            Button("Save") {
+                let c = Calendar.current.dateComponents([.hour, .minute], from: time)
+                minutes = (c.hour ?? 20) * 60 + (c.minute ?? 30)
+                onSave()
+                dismiss()
+            }
+            .buttonStyle(QsButtonStyle(priority: .primary))
+            .padding(.horizontal, Space.s20)
+            .padding(.bottom, QsLayout.actionsAboveBottomLine)
+        }
+        .background(theme.palette.surface.ignoresSafeArea())
+        .presentationDetents([.medium])
+        .presentationCornerRadius(theme.radii.sheet)
+        .onAppear {
+            var c = DateComponents(); c.hour = minutes / 60; c.minute = minutes % 60
+            time = Calendar.current.date(from: c) ?? .now
+        }
+    }
+}
