@@ -2,6 +2,8 @@ import SwiftUI
 
 nonisolated enum ThemeStorage {
     static let key = "themeID"
+    /// In-app High contrast switch (App theme › Accessibility), on top of the system setting.
+    static let forceHighContrast = "forceHighContrast"
 }
 
 nonisolated struct ThemeKey: EnvironmentKey {

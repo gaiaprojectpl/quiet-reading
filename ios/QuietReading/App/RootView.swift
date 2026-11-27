@@ -11,6 +11,7 @@ nonisolated enum OnboardingStorage {
 struct RootView: View {
     @AppStorage(ThemeStorage.key) private var chosenTheme: ThemeID = .peachSage
     @AppStorage(OnboardingStorage.key) private var onboardingDone = false
+    @AppStorage(ThemeStorage.forceHighContrast) private var forceHighContrast = false
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.colorSchemeContrast) private var contrast
     @State private var importSession = ImportSession()
@@ -22,8 +23,11 @@ struct RootView: View {
     @Environment(\.modelContext) private var context
 
     private var resolvedTheme: ThemeID {
-        if contrast == .increased { return .highContrast }
+        if contrast == .increased || forceHighContrast { return .highContrast }
         if colorScheme == .dark { return .night }
+        // A Plus theme being tried on (Flow 5 › Live preview); a locked theme never sticks.
+        if let preview = plus.previewTheme, !plus.isUnlocked { return preview }
+        if chosenTheme.requiresPlus && !plus.isUnlocked { return .peachSage }
         return chosenTheme
     }
 
@@ -68,6 +72,7 @@ struct RootView: View {
 
 private struct MainTabs: View {
     @Environment(\.duoLayout) private var duo
+    @Environment(PlusAccess.self) private var plus
     @State private var tab: AppTab = .home
     @State private var showAdd = false
     @State private var showImport = false
@@ -87,6 +92,14 @@ private struct MainTabs: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if plus.previewTheme != nil && !plus.isUnlocked {
+                PreviewBar().transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.easeOut(duration: Motion.base), value: plus.previewTheme)
+        // Trying on a theme shows it where it matters most: Home.
+        .onChange(of: plus.previewTheme) { _, new in if new != nil { tab = .home } }
         .modifier(Navigation(duo: duo, tab: $tab, onAdd: { showAdd = true }))
         .sheet(isPresented: $showAdd, onDismiss: {
             if let mode = pendingAdd { pendingAdd = nil; addFlow = AddFlowItem(mode: mode) }
@@ -107,6 +120,8 @@ private struct MainTabs: View {
             case "add": showAdd = true
             case "addtype": addFlow = AddFlowItem(mode: .type)
             case "addcover": addFlow = AddFlowItem(mode: .cover)
+            case "plus": plus.showPaywall = true
+            case "preview": plus.previewTheme = .clayCream
             default: break
             }
         }
@@ -143,6 +158,43 @@ private struct MainTabs: View {
                 }
             }
         }
+    }
+}
+
+/// Flow 5 › Live preview: "Previewing Clay & Cream · Get Plus", just above the navigation.
+private struct PreviewBar: View {
+    @Environment(\.theme) private var theme
+    @Environment(PlusAccess.self) private var plus
+
+    var body: some View {
+        HStack(spacing: Space.s8) {
+            Text("Previewing \(plus.previewTheme?.displayName ?? "")")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(theme.palette.onInverse)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Button("Get Plus") { plus.showPaywall = true }
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(theme.palette.onAccent)
+                .padding(.horizontal, Space.s12)
+                .frame(minHeight: Size.buttonSmall - Space.s8)
+                .background(theme.palette.accent, in: RoundedRectangle(cornerRadius: theme.radii.btn, style: .continuous))
+                .frame(minHeight: Size.touchIos)
+                .contentShape(Rectangle())
+                .buttonStyle(QsPressStyle())
+            Button { plus.previewTheme = nil } label: {
+                Image("qs.close").resizable().frame(width: Size.iconS, height: Size.iconS)
+                    .foregroundStyle(theme.palette.onInverse)
+                    .frame(width: Size.touchIos, height: Size.touchIos)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("End preview")
+        }
+        .padding(.leading, Space.s16)
+        .padding(.trailing, Space.s4)
+        .background(theme.palette.inverse, in: RoundedRectangle(cornerRadius: theme.radii.card, style: .continuous))
+        .padding(.horizontal, Space.s16)
+        .padding(.bottom, Space.s8)
     }
 }
 

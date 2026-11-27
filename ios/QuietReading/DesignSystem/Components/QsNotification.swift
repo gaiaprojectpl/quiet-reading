@@ -5,7 +5,7 @@ import SwiftUI
 /// announced by VoiceOver. For meaningful moments only (page saved, book added).
 @Observable
 final class NotificationCenterModel {
-    enum Kind { case success, info, warning }
+    enum Kind { case success, info, warning, error }
 
     struct Item: Identifiable, Equatable {
         let id = UUID()
@@ -55,7 +55,9 @@ struct QsNotificationHost: ViewModifier {
             }
         }
         .animation(.easeOut(duration: Motion.base), value: center.current)
-        .sensoryFeedback(trigger: center.current) { _, new in new == nil ? nil : .success }
+        .sensoryFeedback(trigger: center.current) { _, new in
+            switch new?.kind { case nil: nil; case .error: .error; case .warning: .warning; default: .success }
+        }
     }
 }
 
@@ -69,6 +71,7 @@ private struct QsNotificationView: View {
         case .success: theme.palette.success
         case .info: theme.palette.accent
         case .warning: theme.palette.warning
+        case .error: theme.palette.error
         }
     }
 
@@ -77,13 +80,22 @@ private struct QsNotificationView: View {
         case .success: theme.palette.successSoft
         case .info: theme.palette.soft2
         case .warning: theme.palette.warningSoft
+        case .error: theme.palette.errorSoft
+        }
+    }
+    private var icon: String {
+        switch item.kind {
+        case .success: "qs.check"
+        case .info: "qs.info"
+        case .warning: "qs.bell"
+        case .error: "qs.alert"
         }
     }
     @ScaledMetric(relativeTo: .subheadline) private var badge = Space.s32 + Space.s4
 
     var body: some View {
         HStack(spacing: Space.s12) {
-            Image(item.kind == .success ? "qs.check" : item.kind == .warning ? "qs.bell" : "qs.info")
+            Image(icon)
                 .resizable()
                 .frame(width: Size.iconM, height: Size.iconM)
                 .foregroundStyle(theme.palette.onAccent)
@@ -99,7 +111,7 @@ private struct QsNotificationView: View {
             if let actionTitle = item.actionTitle, let action = item.action {
                 Button(actionTitle) { action(); onClose() }
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(item.kind == .success ? theme.palette.success : item.kind == .warning ? theme.palette.warning : theme.palette.accentInk)
+                    .foregroundStyle(item.kind == .success ? theme.palette.success : item.kind == .warning ? theme.palette.warning : item.kind == .error ? theme.palette.error : theme.palette.accentInk)
                     .frame(minHeight: Size.touchIos)
             }
             Button(action: onClose) {

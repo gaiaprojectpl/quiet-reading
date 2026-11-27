@@ -1,6 +1,7 @@
 import SwiftUI
 import UserNotifications
 import SwiftData
+import StoreKit
 
 /// The reader's profile, kept on this phone (accounts and sync come later).
 nonisolated enum ProfileKeys {
@@ -91,14 +92,128 @@ enum DataExport {
     }
 }
 
-/// Plus (one-time purchase). Flow 5 connects this to StoreKit; Plus themes and icons check it.
+/// Plus (one-time purchase, StoreKit 2). Plus themes, icons and the paywall check it.
+/// The price always comes from the App Store (`displayPrice`), never from the app.
 @Observable
 final class PlusAccess {
+    static let productID = "app.quietreading.plus"
+
+    enum StoreState: Equatable { case loading, ready(price: String), unavailable }
+    enum PurchaseResult { case unlocked, cancelled, pending, failed }
+    enum RestoreResult { case restored, nothing, failed }
+
     var isUnlocked: Bool {
         didSet { UserDefaults.standard.set(isUnlocked, forKey: "plusUnlocked") }
     }
     /// Set to show the Plus screen from anywhere (theme, icon, widgets).
     var showPaywall = false
+    /// A Plus theme the reader is trying on (Flow 5 › Live preview). Not saved.
+    var previewTheme: ThemeID?
+    private(set) var store: StoreState = .loading
+    private(set) var isBusy = false
 
-    init() { isUnlocked = UserDefaults.standard.bool(forKey: "plusUnlocked") }
+    private var product: Product?
+    private var updates: Task<Void, Never>?
+
+    init() {
+        isUnlocked = UserDefaults.standard.bool(forKey: "plusUnlocked")
+        #if DEBUG
+        if UserDefaults.standard.object(forKey: "qsPlus") != nil { isUnlocked = UserDefaults.standard.bool(forKey: "qsPlus") }
+        #endif
+        // Purchases approved later (Ask to Buy), refunds and purchases on another device.
+        updates = Task { [weak self] in
+            for await result in StoreKit.Transaction.updates { self?.apply(result) }
+        }
+        Task { await refreshEntitlement() }
+    }
+
+    func loadProduct() async {
+        if case .ready = store, product != nil || Self.stub != nil { return }
+        store = .loading
+        #if DEBUG
+        if let stub = Self.stub {
+            try? await Task.sleep(for: .milliseconds(400))
+            store = stub == "none" ? .unavailable : .ready(price: "$4.99")
+            return
+        }
+        #endif
+        // Give the store 8 seconds, then offer a way out.
+        let loaded = await withTaskGroup(of: Product?.self) { group in
+            group.addTask { try? await Product.products(for: [Self.productID]).first }
+            group.addTask { try? await Task.sleep(for: .seconds(8)); return nil }
+            let first = await group.next() ?? nil
+            group.cancelAll()
+            return first
+        }
+        product = loaded
+        store = loaded.map { .ready(price: $0.displayPrice) } ?? .unavailable
+    }
+
+    func purchase() async -> PurchaseResult {
+        isBusy = true
+        defer { isBusy = false }
+        #if DEBUG
+        if let stub = Self.stub {
+            try? await Task.sleep(for: .seconds(1))
+            switch stub {
+            case "fail": return .failed
+            case "pending": return .pending
+            default: isUnlocked = true; return .unlocked
+            }
+        }
+        #endif
+        guard let product else { return .failed }
+        do {
+            switch try await product.purchase() {
+            case .success(let verification):
+                guard case .verified(let transaction) = verification else { return .failed }
+                await transaction.finish()
+                isUnlocked = true
+                return .unlocked
+            case .pending: return .pending
+            case .userCancelled: return .cancelled
+            @unknown default: return .failed
+            }
+        } catch {
+            return .failed
+        }
+    }
+
+    func restore() async -> RestoreResult {
+        isBusy = true
+        defer { isBusy = false }
+        #if DEBUG
+        if let stub = Self.stub {
+            try? await Task.sleep(for: .seconds(1))
+            if stub == "restore" { isUnlocked = true; return .restored }
+            return .nothing
+        }
+        #endif
+        do { try await AppStore.sync() } catch { return .failed }
+        await refreshEntitlement()
+        return isUnlocked ? .restored : .nothing
+    }
+
+    private func refreshEntitlement() async {
+        for await result in StoreKit.Transaction.currentEntitlements {
+            if case .verified(let t) = result, t.productID == Self.productID, t.revocationDate == nil {
+                isUnlocked = true
+            }
+        }
+    }
+
+    private func apply(_ result: VerificationResult<StoreKit.Transaction>) {
+        guard case .verified(let t) = result, t.productID == Self.productID else { return }
+        isUnlocked = t.revocationDate == nil
+        Task { await t.finish() }
+    }
+
+    /// Test builds only: `-qsStore ready | none | fail | pending | restore` fakes the App Store.
+    private static var stub: String? {
+        #if DEBUG
+        UserDefaults.standard.string(forKey: "qsStore")
+        #else
+        nil
+        #endif
+    }
 }

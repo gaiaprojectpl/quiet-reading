@@ -270,49 +270,82 @@ struct AvatarView: View {
 
 // MARK: - App theme
 
+/// Flow 5 › App theme: theme cards drawn in their own colours. Free first, then Plus.
+/// Tapping a locked Plus theme tries it on across the app (Live preview) instead of locking a door.
 struct ThemePickerView: View {
     @AppStorage(ThemeStorage.key) private var chosenTheme: ThemeID = .peachSage
+    @AppStorage(ThemeStorage.forceHighContrast) private var forceHighContrast = false
     @Environment(\.theme) private var theme
     @Environment(PlusAccess.self) private var plus
-    private let pickable: [ThemeID] = [.peachSage, .clayCream, .blushIvory, .lavenderMist]
+    private let plusThemes: [ThemeID] = [.clayCream, .blushIvory, .lavenderMist]
+    private let columns = [GridItem(.flexible(), spacing: Space.s12), GridItem(.flexible(), spacing: Space.s12)]
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Space.s16) {
                 HStack { QsBackButton(title: "Settings"); Spacer() }
                 ScreenTitle(title: "App theme")
-                QsListCard {
-                    ForEach(pickable, id: \.self) { id in
-                        Button {
-                            if id.requiresPlus && !plus.isUnlocked { plus.showPaywall = true } else { chosenTheme = id }
-                        } label: {
-                            HStack(spacing: Space.s12) {
-                                ThemeSwatch(id: id)
-                                Text(id.displayName).font(.body).foregroundStyle(theme.palette.ink)
-                                if id.requiresPlus { PlusBadge() }
-                                Spacer()
-                                if id == chosenTheme {
-                                    Image("qs.check").resizable().frame(width: Size.iconM, height: Size.iconM)
-                                        .foregroundStyle(theme.palette.accentInk)
-                                }
-                            }
-                            .padding(Space.s16)
-                            .frame(minHeight: Size.touchIos)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityAddTraits(id == chosenTheme ? [.isSelected] : [])
-                    }
+                sectionLabel("Free")
+                LazyVGrid(columns: columns, spacing: Space.s12) { card(.peachSage) }
+                HStack(spacing: Space.s4) {
+                    sectionLabel("Plus")
+                    Image("qs.crown").resizable().frame(width: Size.iconS - 2, height: Size.iconS - 2)
+                        .foregroundStyle(theme.palette.ink2).accessibilityHidden(true)
                 }
-                Text("Dark Mode uses Night and Increase Contrast uses High contrast. Both are always free.")
+                .padding(.top, Space.s8)
+                LazyVGrid(columns: columns, spacing: Space.s12) {
+                    ForEach(plusThemes, id: \.self) { card($0) }
+                }
+                if !plus.isUnlocked {
+                    Text("Tap a Plus theme to try it on. Nothing changes until you choose to unlock.")
+                        .font(.footnote).foregroundStyle(theme.palette.ink2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                sectionLabel("Accessibility · always free").padding(.top, Space.s8)
+                QsListCard {
+                    HStack(spacing: Space.s12) {
+                        Image("qs.eye").resizable().frame(width: Size.iconM, height: Size.iconM)
+                            .foregroundStyle(theme.palette.accentInk)
+                            .frame(width: Space.s32 + Space.s4, height: Space.s32 + Space.s4)
+                            .background(theme.palette.soft2, in: Circle())
+                            .accessibilityHidden(true)
+                        Toggle("High contrast", isOn: $forceHighContrast)
+                            .font(.body).foregroundStyle(theme.palette.ink).tint(theme.palette.accent)
+                    }
+                    .padding(.horizontal, Space.s16)
+                    .padding(.vertical, Space.s8)
+                    .frame(minHeight: Size.touchIos)
+                }
+                Text("Night follows Dark Mode. High contrast also turns on with Increase Contrast in iPhone settings.")
                     .font(.footnote).foregroundStyle(theme.palette.ink2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.horizontal, Space.s20)
             .padding(.top, Space.s8)
+            .padding(.bottom, Space.s24)
             .gentleAnimation(chosenTheme)
         }
         .background(theme.palette.bg.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
+        .sensoryFeedback(.selection, trigger: chosenTheme)
+    }
+
+    private func sectionLabel(_ text: LocalizedStringKey) -> some View {
+        Text(text).textCase(.uppercase)
+            .font(.caption.weight(.semibold)).tracking(0.5)
+            .foregroundStyle(theme.palette.ink2)
+            .accessibilityAddTraits(.isHeader)
+    }
+
+    private func card(_ id: ThemeID) -> some View {
+        let locked = id.requiresPlus && !plus.isUnlocked
+        return Button {
+            if locked { plus.previewTheme = id } else { chosenTheme = id }
+        } label: {
+            ThemePreviewCard(id: id, title: id.displayName, isSelected: !locked && id == chosenTheme, isLocked: locked)
+        }
+        .buttonStyle(QsPressStyle())
+        .accessibilityHint(locked ? "Try it on" : "")
     }
 }
 
@@ -325,18 +358,6 @@ struct PlusBadge: View {
             .padding(.horizontal, Space.s8)
             .padding(.vertical, Space.s2)
             .background(theme.palette.soft2, in: Capsule())
-    }
-}
-
-private struct ThemeSwatch: View {
-    let id: ThemeID
-    @Environment(\.theme) private var theme
-    var body: some View {
-        HStack(spacing: 0) { id.palette.bg; id.palette.soft; id.palette.accent }
-            .frame(width: Space.s32 + Space.s4, height: Space.s24)
-            .clipShape(RoundedRectangle(cornerRadius: theme.radii.inner - 2, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: theme.radii.inner - 2, style: .continuous).strokeBorder(id.palette.line))
-            .accessibilityHidden(true)
     }
 }
 
