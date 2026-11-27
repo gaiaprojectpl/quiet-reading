@@ -19,6 +19,7 @@ struct RootView: View {
     @State private var connectivity = Connectivity()
     @State private var plus = PlusAccess()
     @State private var router = WidgetRouter()
+    @State private var companion = CompanionStore()
     @Query private var allBooks: [Book]
     @AppStorage(ProfileKeys.goal) private var goal = 0
     @Environment(\.scenePhase) private var scenePhase
@@ -84,14 +85,19 @@ struct RootView: View {
         }
         .onOpenURL { router.handle($0) }
         .onChange(of: scenePhase, initial: true) { _, phase in if phase == .active { router.checkPendingUpdate() } }
-        .fullScreenCover(isPresented: Bindable(plus).showPaywall) { PlusView() }
+        .fullScreenCover(isPresented: Bindable(plus).showPaywall) { PlusView().duoCover() }
         .environment(importSession)
         .environment(router)
+        .environment(companion)
         .environment(connectivity)
         .environment(plus)
         .environment(notifications)
         #if DEBUG
         .modifier(DuoProbe())
+        .task {
+            let n = UserDefaults.standard.integer(forKey: "qsAstridEval")
+            if n > 0 { await AstridEval.run(limit: n) }
+        }
         #endif
         .tint(resolvedTheme.palette.accentInk)
         .environment(\.theme, resolvedTheme)
@@ -100,9 +106,12 @@ struct RootView: View {
 
 private struct MainTabs: View {
     @Environment(\.duoLayout) private var duo
+    @Environment(\.theme) private var theme
     @Environment(PlusAccess.self) private var plus
     @Environment(WidgetRouter.self) private var router
+    @Environment(CompanionStore.self) private var companion
     @State private var tab: AppTab = .home
+    @State private var libraryShelf: ReadingStatus?
     @State private var showAdd = false
     @State private var showImport = false
     @State private var pendingAdd: AddMode?
@@ -113,8 +122,8 @@ private struct MainTabs: View {
     var body: some View {
         Group {
             switch tab {
-            case .home: HomeView(onSeeAll: { tab = .library }, onAddBook: { showAdd = true }, onImport: { showImport = true })
-            case .library: LibraryView(onAddBook: { showAdd = true }, onImport: { showImport = true })
+            case .home: HomeView(onSeeAll: { libraryShelf = .toRead; tab = .library }, onAddBook: { showAdd = true }, onImport: { showImport = true })
+            case .library: LibraryView(onAddBook: { showAdd = true }, onImport: { showImport = true }, requestedShelf: $libraryShelf)
             case .add: EmptyView() // Add is a sheet, never a tab
             case .stats: StatsView(onAddBook: { showAdd = true })
             case .settings: SettingsView(onImport: { showImport = true })
@@ -135,16 +144,48 @@ private struct MainTabs: View {
         .onChange(of: router.openAdd) { _, open in if open { router.openAdd = false; showAdd = true } }
         .onChange(of: router.openStats) { _, open in if open { router.openStats = false; tab = .stats } }
         .onChange(of: router.openPlus) { _, open in if open { router.openPlus = false; plus.showPaywall = true } }
-        .modifier(Navigation(duo: duo, tab: $tab, onAdd: { showAdd = true }))
+        .onChange(of: router.openBookInPlace) { _, b in if b != nil { tab = .home } }
+        .modifier(Navigation(duo: duo, tab: $tab, onAdd: { showAdd = true }, showAI: !companion.isOpen))
+        // Flow 12 · Reading companion: full screen on iPhone (and Duo closed / upright / tabletop),
+        // the right-hand page when the Duo is open like a book.
+        .fullScreenCover(isPresented: Binding(get: { companion.isOpen && duo.mode != .book },
+                                              set: { if !$0 { companion.isOpen = false } })) {
+            CompanionScreen().modifier(QsNotificationHost()).duoCover()
+        }
+        .overlay {
+            if companion.isOpen && duo.mode == .book {
+                // "Swap sides" (Astrid & privacy) mirrors the panes for left-handed use.
+                let left = UserDefaults.standard.bool(forKey: CompanionKeys.leftPane)
+                HStack(spacing: 0) {
+                    if left {
+                        CompanionScreen()
+                            .frame(width: duo.fold.minX)
+                            .clipShape(RoundedRectangle(cornerRadius: Space.s20, style: .continuous))
+                            .shadow(color: theme.palette.scrim.opacity(0.08), radius: 12, x: 2, y: 0)
+                            .transition(.move(edge: .leading))
+                        Color.clear.allowsHitTesting(false)
+                    } else {
+                        Color.clear.frame(width: duo.fold.maxX).allowsHitTesting(false)
+                        CompanionScreen()
+                            .clipShape(RoundedRectangle(cornerRadius: Space.s20, style: .continuous))
+                            .shadow(color: theme.palette.scrim.opacity(0.08), radius: 12, x: -2, y: 0)
+                            .transition(.move(edge: .trailing))
+                    }
+                }
+                .duoTopSpacing(duo)
+            }
+        }
+        .animation(.easeOut(duration: Motion.base), value: companion.isOpen)
         .sheet(isPresented: $showAdd, onDismiss: {
             if let mode = pendingAdd { pendingAdd = nil; addFlow = AddFlowItem(mode: mode) }
         }) {
             AddBookView(onChoose: { pendingAdd = $0 })
         }
-        .fullScreenCover(isPresented: $showImport) { ImportLibraryView() }
+        .fullScreenCover(isPresented: $showImport) { ImportLibraryView().duoCover() }
         .fullScreenCover(item: $addFlow) { item in
             AddFlow(mode: item.mode)
                 .modifier(QsNotificationHost())
+                .duoCover()
         }
         #if DEBUG
         // Test builds only: `-qsOpen library` or `-qsOpen add` opens a tab or the Add sheet.
@@ -156,6 +197,7 @@ private struct MainTabs: View {
             case "addtype": addFlow = AddFlowItem(mode: .type)
             case "addcover": addFlow = AddFlowItem(mode: .cover)
             case "plus": plus.showPaywall = true
+            case "companion": companion.isOpen = true
             case "preview": plus.previewTheme = .clayCream
             default: break
             }
@@ -168,6 +210,7 @@ private struct MainTabs: View {
         let duo: DuoLayout
         @Binding var tab: AppTab
         let onAdd: () -> Void
+        var showAI = true
 
         func body(content: Content) -> some View {
             if duo.usesRail {
@@ -177,7 +220,10 @@ private struct MainTabs: View {
                     .overlay(alignment: .bottomTrailing) {
                         // The content ends where the system column starts; shift the rail one column
                         // to the right so it sits inside the column, 24 pt above the bottom edge.
-                        QsTabRail(selection: $tab, onAdd: onAdd)
+                        VStack(spacing: Space.s12) {
+                            if showAI { CompanionButton(size: Size.button).transition(.scale.combined(with: .opacity)) }
+                            QsTabRail(selection: $tab, onAdd: onAdd)
+                        }
                             .frame(width: duo.column)
                             .offset(x: duo.column)
                             .padding(.bottom, Space.s24)
@@ -189,6 +235,17 @@ private struct MainTabs: View {
                     content
                         .duoTopSpacing(duo)
                         .frame(maxHeight: .infinity)
+                        // Room under scrolling content so Astrid's button never hides the last card.
+                        .contentMargins(.bottom, Size.button + Space.s24, for: .scrollContent)
+                        // AI button: bottom-trailing, floating just above the tab bar.
+                        .overlay(alignment: .bottomTrailing) {
+                            if showAI {
+                                CompanionButton()
+                                    .padding(.trailing, Space.s20)
+                                    .padding(.bottom, Space.s16)
+                                    .transition(.scale.combined(with: .opacity))
+                            }
+                        }
                     QsTabBar(selection: $tab, onAdd: onAdd)
                 }
             }

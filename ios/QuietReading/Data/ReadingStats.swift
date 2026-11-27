@@ -211,6 +211,16 @@ struct Stamp: Identifiable {
     /// How to get it (shown while it's still locked) or what it was for.
     let how: String
     let earned: Bool
+    /// Progress towards a countable stamp (e.g. 7 of 10 books), nil when it isn't countable.
+    var progress: (current: Int, target: Int)? = nil
+
+    /// The next stamp to collect: the locked one closest to done.
+    static func next(_ all: [Stamp]) -> Stamp? {
+        all.filter { !$0.earned && $0.progress != nil }
+            .max { a, b in
+                Double(a.progress!.current) / Double(a.progress!.target) < Double(b.progress!.current) / Double(b.progress!.target)
+            }
+    }
 
     static func all(_ stats: ReadingStats, autumnDone: Bool) -> [Stamp] {
         let cal = stats.calendar
@@ -228,27 +238,27 @@ struct Stamp: Identifiable {
             Stamp(id: "first", icon: "qs.book", name: String(localized: "First book"),
                   how: String(localized: "Finish your first book."), earned: !stats.finished.isEmpty),
             Stamp(id: "pages1000", icon: "qs.file", name: String(localized: "1,000 pages"),
-                  how: String(localized: "Read 1,000 pages in all."), earned: pagesRead >= 1000),
+                  how: String(localized: "Read 1,000 pages in all."), earned: pagesRead >= 1000, progress: (min(pagesRead, 1000), 1000)),
             Stamp(id: "nightowl", icon: "qs.moon", name: String(localized: "Night owl"),
-                  how: String(localized: "Read after 11 pm on 5 nights."), earned: lateNights >= 5),
+                  how: String(localized: "Read after 11 pm on 5 nights."), earned: lateNights >= 5, progress: (min(lateNights, 5), 5)),
             Stamp(id: "quote", icon: "qs.quote", name: String(localized: "First quote"),
                   how: String(localized: "Save a line you loved."), earned: stats.books.contains { !$0.quotes.isEmpty }),
             Stamp(id: "long", icon: "qs.flash", name: String(localized: "500+ pages"),
                   how: String(localized: "Finish a book with 500 pages or more."), earned: stats.finished.contains { ($0.pageCount ?? 0) >= 500 }),
             Stamp(id: "moods", icon: "qs.heart", name: String(localized: "5 moods"),
-                  how: String(localized: "Tag 5 different moods on your books."), earned: moods >= 5),
+                  how: String(localized: "Tag 5 different moods on your books."), earned: moods >= 5, progress: (min(moods, 5), 5)),
             Stamp(id: "autumn", icon: "qs.calendar", name: String(localized: "Autumn reads"),
                   how: String(localized: "Finish the Cozy autumn challenge."), earned: autumnDone),
             Stamp(id: "reviews", icon: "qs.star-empty", name: String(localized: "10 reviews"),
-                  how: String(localized: "Rate 10 books."), earned: rated >= 10),
+                  how: String(localized: "Rate 10 books."), earned: rated >= 10, progress: (min(rated, 10), 10)),
             Stamp(id: "earlybird", icon: "qs.bell", name: String(localized: "Early bird"),
-                  how: String(localized: "Read before 8 am on 5 mornings."), earned: nights(4...7) >= 5),
+                  how: String(localized: "Read before 8 am on 5 mornings."), earned: nights(4...7) >= 5, progress: (min(nights(4...7), 5), 5)),
             Stamp(id: "ten", icon: "qs.library", name: String(localized: "Ten books"),
-                  how: String(localized: "Finish 10 books."), earned: stats.finished.count >= 10),
+                  how: String(localized: "Finish 10 books."), earned: stats.finished.count >= 10, progress: (min(stats.finished.count, 10), 10)),
             Stamp(id: "week", icon: "qs.check", name: String(localized: "Seven days"),
-                  how: String(localized: "Read on every day of one week."), earned: fullWeek),
+                  how: String(localized: "Read on every day of one week."), earned: fullWeek, progress: (stats.thisWeek.filter(\.didRead).count, 7)),
             Stamp(id: "authors", icon: "qs.bookmark", name: String(localized: "Five authors"),
-                  how: String(localized: "Finish books by 5 different authors."), earned: authors >= 5),
+                  how: String(localized: "Finish books by 5 different authors."), earned: authors >= 5, progress: (min(authors, 5), 5)),
         ]
     }
 }

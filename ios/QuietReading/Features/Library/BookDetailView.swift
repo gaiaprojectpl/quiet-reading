@@ -24,6 +24,7 @@ struct BookDetailView: View {
     @State private var editingMoods = false
     @State private var tab: DetailTab = .progress
     @State private var addingQuote = false
+    @State private var addingNote = false
     @State private var quoteSource: QuoteSource?
     @State private var pendingQuoteSource: QuoteSource?
     @State private var coverMenu = false
@@ -75,6 +76,12 @@ struct BookDetailView: View {
                     .padding(.top, Space.s12)
                     .padding(.bottom, QsLayout.actionsAboveBottomLine)
                     .background(theme.palette.bg)
+            } else if pinActions, tab == .notes {
+                addNoteButton
+                    .padding(.horizontal, Space.s20)
+                    .padding(.top, Space.s12)
+                    .padding(.bottom, QsLayout.actionsAboveBottomLine)
+                    .background(theme.palette.bg)
             } else if pinActions, hasActions {
                 actions
                     .padding(.horizontal, Space.s20)
@@ -90,7 +97,7 @@ struct BookDetailView: View {
         }) { b in
             UpdatePageSheet(book: b, onFinish: { finishAfterSheet = b })
         }
-        .fullScreenCover(item: $finishing) { FinishFlow(book: $0) }
+        .fullScreenCover(item: $finishing) { FinishFlow(book: $0).duoCover() }
         .sheet(isPresented: $showMove, onDismiss: {
             if removeAfterSheet { removeAfterSheet = false; confirmRemove = true }
         }) {
@@ -102,7 +109,8 @@ struct BookDetailView: View {
         }) {
             AddQuoteSheet(onChoose: { pendingQuoteSource = $0 })
         }
-        .fullScreenCover(item: $quoteSource) { QuoteFlow(book: book, source: $0) }
+        .fullScreenCover(item: $quoteSource) { QuoteFlow(book: book, source: $0).duoCover() }
+        .sheet(isPresented: $addingNote) { NoteComposer(book: book) }
         // Cover photo: take one of the book in your hands, or pick one from Photos.
         .confirmationDialog(book.coverData == nil ? "Add a cover" : "Change the cover", isPresented: $coverMenu, titleVisibility: .visible) {
             if UIImagePickerController.isSourceTypeAvailable(.camera) { Button("Take a photo") { takingCover = true } }
@@ -355,12 +363,18 @@ struct BookDetailView: View {
     @ViewBuilder private var notesTab: some View {
         if notes.isEmpty {
             EmptyStateView(icon: "qs.quote", title: "No notes yet",
-                           message: "Add a short note when you update your page.")
+                           message: duo.mode != .phone
+                               ? "Write a thought with Pencil or type it. Notes stay with this book."
+                               : "Jot down a thought about this book. Notes stay with it.")
         } else {
             ForEach(notes) { n in
                 VStack(alignment: .leading, spacing: Space.s8) {
-                    Text(n.note ?? "").font(.body).foregroundStyle(theme.palette.ink)
-                    Text("p. \(n.toPage) · \(n.date.formatted(.dateTime.day().month(.wide)))")
+                    if let ink = n.noteDrawing {
+                        HandwrittenNoteView(data: ink)
+                    } else {
+                        Text(n.note ?? "").font(.body).foregroundStyle(theme.palette.ink)
+                    }
+                    Text("p. \(n.toPage) · \(n.date.formatted(.dateTime.day().month(.wide)))" + (n.noteDrawing != nil ? " · " + String(localized: "handwritten") : ""))
                         .font(.footnote).foregroundStyle(theme.palette.ink2)
                 }
                 .padding(Space.s16)
@@ -368,9 +382,26 @@ struct BookDetailView: View {
                 .background(theme.palette.surface, in: RoundedRectangle(cornerRadius: theme.radii.card, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: theme.radii.card, style: .continuous)
                     .strokeBorder(theme.palette.line, lineWidth: Size.stroke))
-                .accessibilityElement(children: .combine)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text(n.note ?? ""))
+                .accessibilityValue(Text("Page \(n.toPage)"))
+                .contextMenu {
+                    Button("Delete note", role: .destructive) {
+                        if n.fromPage == n.toPage { context.delete(n) } else { n.note = nil; n.noteDrawing = nil }
+                        try? context.save()
+                    }
+                }
+                .gentleAppear()
             }
         }
+        if !pinActions { addNoteButton }
+    }
+
+    private var addNoteButton: some View {
+        Button { addingNote = true } label: {
+            Label { Text("Add a note") } icon: { Image("qs.pencil").resizable().frame(width: Size.iconM, height: Size.iconM) }
+        }
+        .buttonStyle(QsButtonStyle(priority: .primary))
     }
 
     private var infoCard: some View {

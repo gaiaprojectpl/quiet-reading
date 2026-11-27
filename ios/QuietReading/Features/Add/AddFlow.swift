@@ -55,7 +55,7 @@ struct AddFlow: View {
             ConfirmEditionSheet(candidates: c.candidates, photo: c.photo, onAdded: { dismiss() })
         }
         .fullScreenCover(item: $noMatch) { n in
-            NoMatchView(photo: n.photo, title: n.title, author: n.author, onDone: { noMatch = nil; dismiss() })
+            NoMatchView(photo: n.photo, title: n.title, author: n.author, onDone: { noMatch = nil; dismiss() }).duoCover()
         }
         .alert("Allow camera access?", isPresented: $cameraDenied) {
             Button("Not now", role: .cancel) { mode = .type }
@@ -366,6 +366,7 @@ struct TypeSearchView: View {
         .fullScreenCover(isPresented: $addingByHand) {
             NoMatchView(photo: nil, title: query, author: "", heading: "Add by hand", showsWarning: false,
                         onDone: { addingByHand = false; onCancel() })
+                .duoCover()
         }
     }
 

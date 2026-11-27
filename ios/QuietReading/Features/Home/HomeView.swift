@@ -68,7 +68,7 @@ struct HomeView: View {
                 UpdatePageSheet(book: book, onFinish: { finishAfterSheet = book })
             }
             .fullScreenCover(item: $finishing) { book in
-                FinishFlow(book: book)
+                FinishFlow(book: book).duoCover()
             }
             // From a widget: "+" / "Update" opens the page update; a tap on the book opens its details.
             .onChange(of: router.updateBookID, initial: true) { _, id in
@@ -76,13 +76,18 @@ struct HomeView: View {
                 router.updateBookID = nil
                 if let book = WidgetSync.book(for: id, in: context) { path = []; updating = book }
             }
+            .onChange(of: router.openBookInPlace) { _, book in
+                guard let book else { return }
+                router.openBookInPlace = nil
+                path = [book]
+            }
             .onChange(of: router.openBookID, initial: true) { _, id in
                 guard let id else { return }
                 router.openBookID = nil
                 if let book = WidgetSync.book(for: id, in: context) { path = [book] }
             }
             .fullScreenCover(isPresented: $choosingNext) {
-                NavigationStack { WhatNextView(onDone: { choosingNext = false }) }
+                NavigationStack { WhatNextView(onDone: { choosingNext = false }) }.duoCover()
             }
             #if DEBUG
             // Test builds only: `-qsOpen update | finish | saved | whatnext`.
@@ -118,7 +123,6 @@ struct HomeView: View {
             .padding(.top, Space.s16)
             .padding(.bottom, Space.s40)
         }
-        .safeAreaInset(edge: .bottom, spacing: 0) { if pinActions { pinnedActions } }
     }
 
     /// Duo open like a book: Reading now on the left page, Up next on the right page.
@@ -132,7 +136,6 @@ struct HomeView: View {
                 }
                 .padding(Space.s20)
             }
-            .safeAreaInset(edge: .bottom, spacing: 0) { pinnedActions }
             .frame(width: duo.fold.minX)
             ScrollView {
                 if !upNext.isEmpty { upNextList }
@@ -162,27 +165,11 @@ struct HomeView: View {
             ScrollView {
                 if !upNext.isEmpty { upNextList }
             }
-            .safeAreaInset(edge: .bottom, spacing: 0) { pinnedActions }
         }
         .ignoresSafeArea(edges: .top)
     }
 
     // MARK: Sections
-
-    /// On iPhone Duo the navigation is a side rail, so Update / Finished are pinned to the bottom
-    /// of the screen (or page) in every posture. On iPhone they stay in the card above the tab bar.
-    private var pinActions: Bool { duo.mode != .phone }
-
-    @ViewBuilder private var pinnedActions: some View {
-        if let current {
-            BookActions(onUpdate: { updating = current }, onFinish: { finishing = current })
-                .padding(.horizontal, Space.s20)
-                .padding(.top, Space.s12)
-                // Tabletop has the bottom tab bar below; elsewhere keep clear of the edge (placement rules).
-                .padding(.bottom, duo.actionsBottom)
-                .background(theme.palette.bg)
-        }
-    }
 
     private var header: some View {
         VStack(alignment: .leading, spacing: Space.s20) {
@@ -199,13 +186,16 @@ struct HomeView: View {
 
     @ViewBuilder private var currentSection: some View {
         if let current {
-            CurrentBookCard(book: current, onUpdate: { updating = current }, onFinish: { finishing = current }, showsActions: !pinActions)
+            // Kaja, 27 Nov: no Update / Finished on Home (unclear what they belong to). Tap the book → its details.
+            CurrentBookCard(book: current, onUpdate: { updating = current }, onFinish: { finishing = current }, showsActions: false)
+            // Flow 12 › Gentle nudge: one companion card, only near the end of a book, never above the current book.
+            if CompanionNudgeCard.shouldShow(current) { CompanionNudgeCard(book: current).transition(.opacity) }
         } else {
             NothingInProgress(hasWantToRead: !upNext.isEmpty, onAddBook: onAddBook, onChoose: { choosingNext = true })
         }
     }
 
-    /// "Also reading": the other books in progress, each with its own Update.
+    /// "Also reading": the other books in progress. Tap one for its details (Update / Finished live there).
     private var alsoReadingSection: some View {
         VStack(alignment: .leading, spacing: Space.s12) {
             Text("Also reading")
@@ -214,7 +204,7 @@ struct HomeView: View {
                 .accessibilityAddTraits(.isHeader)
             QsListCard {
                 ForEach(alsoReading) { book in
-                    AlsoReadingRow(book: book, onUpdate: { updating = book })
+                    AlsoReadingRow(book: book, onUpdate: nil)
                 }
             }
         }
@@ -299,7 +289,7 @@ struct HomeView: View {
 /// One more book in progress: cover, title, progress, and its own Update. Tap the row for details.
 private struct AlsoReadingRow: View {
     let book: Book
-    let onUpdate: () -> Void
+    let onUpdate: (() -> Void)?
     @Environment(\.theme) private var theme
 
     private var progressLine: String {
@@ -331,10 +321,15 @@ private struct AlsoReadingRow: View {
             .buttonStyle(QsPressStyle())
             .accessibilityElement(children: .combine)
             .accessibilityHint("Open the book")
-            Button("Update", action: onUpdate)
-                .buttonStyle(QsButtonStyle(priority: .secondary, size: .small))
-                .fixedSize()
-                .accessibilityLabel(Text("Update \(book.title)"))
+            if let onUpdate {
+                Button("Update", action: onUpdate)
+                    .buttonStyle(QsButtonStyle(priority: .secondary, size: .small))
+                    .fixedSize()
+                    .accessibilityLabel(Text("Update \(book.title)"))
+            } else {
+                Image("qs.chevron").resizable().frame(width: Size.iconS, height: Size.iconS)
+                    .foregroundStyle(theme.palette.ink2).accessibilityHidden(true)
+            }
         }
         .padding(.horizontal, Space.s12)
         .padding(.vertical, Space.s12)

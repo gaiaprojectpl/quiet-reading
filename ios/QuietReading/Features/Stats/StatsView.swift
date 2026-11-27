@@ -72,7 +72,7 @@ struct StatsView: View {
             }) { book in
                 UpdatePageSheet(book: book, onFinish: { finishAfterSheet = book })
             }
-            .fullScreenCover(item: $finishing) { FinishFlow(book: $0) }
+            .fullScreenCover(item: $finishing) { FinishFlow(book: $0).duoCover() }
             .task(id: stamps.filter(\.earned).map(\.id)) { announceNewStamps() }
             // The share icon shares what's on screen (week, month or year) as a ready-made image.
             .task(id: "\(period)-\(year)-\(month)-\(books.count)-\(theme.rawValue)") { renderShare() }
@@ -100,23 +100,26 @@ struct StatsView: View {
                               (.month, String(localized: "Month")),
                               (.year, String(localized: "Year"))], selection: $period)
         let s = stats
+        // Kaja, 27 Nov: collecting is the engaging part, so stamps and the seasonal challenge
+        // sit right under the first card in every view.
         switch period {
         case .week:
             RhythmCard(week: s.thisWeek, goalDays: $weeklyDays)
+            gamification(s)
             PagesWeekCard(week: s.thisWeek)
         case .month:
             monthTiles(s)
+            gamification(s)
             ReadingDaysCard(stats: s, month: $month)
         case .year:
             GoalCard(goal: s.goal(goal, year: year), year: year, selectedYear: $year, years: s.years) { editingGoal = true }
+            gamification(s)
             RhythmCard(week: s.thisWeek, goalDays: $weeklyDays)
             PagesWeekCard(week: s.thisWeek)
             ReadingDaysCard(stats: s, month: $month)
             BooksPerMonthCard(counts: s.booksPerMonth(year: year), year: year, selectedYear: $year, years: s.years)
             ShelfCard(books: s.finished(in: year), year: year) { path.append(.book($0)) }
         }
-        stampsCard
-        if let c = SeasonalChallenge(stats: s) { ChallengeCard(challenge: c, joined: joined) { showJoin = true } }
         QsListCard {
             QsListRow(icon: "qs.calendar", title: "Your \(String(year)) in books",
                       subtitle: "Covers, numbers and a card to share") { path.append(.year(year)) }
@@ -147,14 +150,43 @@ struct StatsView: View {
         .accessibilityElement(children: .combine)
     }
 
+    @ViewBuilder private func gamification(_ s: ReadingStats) -> some View {
+        stampsCard
+        if let c = SeasonalChallenge(stats: s) { ChallengeCard(challenge: c, joined: joined) { showJoin = true } }
+    }
+
+    /// Reading stamps: the latest collected ones, plus the next one to collect with a gentle progress bar.
     private var stampsCard: some View {
         let all = stamps
         let firstRow = Array((all.filter(\.earned) + all.filter { !$0.earned }).prefix(4))
+        let next = Stamp.next(all)
         return Button { path.append(.stamps) } label: {
             StatsCard(title: "Reading stamps") {
                 Text("\(all.filter(\.earned).count) of \(all.count)").font(.caption).foregroundStyle(theme.palette.ink2)
             } content: {
                 HStack(spacing: Space.s8) { ForEach(firstRow) { StampBadge(stamp: $0) } }
+                if let next, let p = next.progress {
+                    HStack(spacing: Space.s12) {
+                        Image(next.icon).resizable().frame(width: Size.iconS, height: Size.iconS)
+                            .foregroundStyle(theme.palette.accentInk)
+                            .frame(width: Space.s32, height: Space.s32)
+                            .background(theme.palette.soft2, in: Circle())
+                            .accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: Space.s4) {
+                            HStack {
+                                Text("Next: \(next.name)").font(.footnote.weight(.semibold)).foregroundStyle(theme.palette.ink)
+                                Spacer()
+                                Text("\(p.current.formatted()) of \(p.target.formatted())").font(.footnote).foregroundStyle(theme.palette.ink2)
+                                    .contentTransition(.numericText())
+                            }
+                            QsProgressBar(value: Double(p.current) / Double(p.target), size: .s)
+                            Text(next.how).font(.caption).foregroundStyle(theme.palette.ink2)
+                        }
+                    }
+                    .padding(Space.s12)
+                    .background(theme.palette.bg, in: RoundedRectangle(cornerRadius: theme.radii.inner, style: .continuous))
+                    .accessibilityElement(children: .combine)
+                }
             }
             .contentShape(Rectangle())
         }

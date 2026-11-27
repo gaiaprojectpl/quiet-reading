@@ -137,6 +137,8 @@ final class ReadingSession {
     var toPage: Int
     var minutes: Int?
     var note: String?
+    /// Handwritten note (PencilKit drawing). `note` keeps the recognised text for search, Astrid and VoiceOver.
+    @Attribute(.externalStorage) var noteDrawing: Data?
     var book: Book?
 
     init(date: Date = .now, fromPage: Int, toPage: Int, minutes: Int? = nil, note: String? = nil) {

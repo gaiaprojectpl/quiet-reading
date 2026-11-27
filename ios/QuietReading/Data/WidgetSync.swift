@@ -114,6 +114,8 @@ final class WidgetRouter {
     var openAdd = false
     var openStats = false
     var openPlus = false
+    /// Duo open: a book tapped in Astrid's chat opens on the left page.
+    var openBookInPlace: Book?
 
     func handle(_ url: URL) {
         guard url.scheme == "quietreading" else { return }

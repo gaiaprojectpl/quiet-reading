@@ -28,7 +28,7 @@ struct SettingsView: View {
     @State private var confirmDelete = false
     @State private var avatar: UIImage?
 
-    enum Page: Hashable { case profile, theme, icon, sources }
+    enum Page: Hashable { case profile, theme, icon, sources, companion }
 
     private var finishedThisYear: Int {
         let year = Calendar.current.component(.year, from: .now)
@@ -52,6 +52,8 @@ struct SettingsView: View {
                     section("Reading") {
                         reminderRow
                         QsListRow(icon: "qs.link", title: "Sources", subtitle: LocalizedStringKey(sourcesLine)) { path.append(.sources) }
+                        QsListRow(icon: "qs.sparkles", title: "Astrid · reading companion",
+                                  subtitle: UserDefaults.standard.bool(forKey: CompanionKeys.enabled) ? "On · stays on your iPhone" : "Off") { path.append(.companion) }
                     }
                     section("Quiet Reading Plus") {
                         QsListRow(icon: "qs.crown", title: "Quiet Reading Plus",
@@ -85,6 +87,7 @@ struct SettingsView: View {
                 case .theme: ThemePickerView()
                 case .icon: AppIconView()
                 case .sources: SourcesView(onImport: onImport)
+                case .companion: CompanionSettingsView()
                 }
             }
             .sheet(isPresented: $editingGoal) { GoalSheet(goal: $goal, finishedThisYear: finishedThisYear) }
@@ -107,6 +110,7 @@ struct SettingsView: View {
                 case "profile": path = [.profile]
                 case "icon": path = [.icon]
                 case "theme": path = [.theme]
+                case "companion": path = [.companion]
                 default: break
                 }
             }

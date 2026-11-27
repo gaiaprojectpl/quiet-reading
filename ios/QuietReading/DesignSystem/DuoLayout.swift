@@ -112,3 +112,17 @@ struct DuoLayoutReader<Content: View>: View {
 final class HingeBox {
     var hinge: Any?
 }
+
+/// Full-screen covers (New quote, Finished, Add, Import, Plus, Astrid…) get the same room at the top
+/// as the tab screens on iPhone Duo, where the clock lives in the side column and the top safe area is 0.
+/// Without it, Cancel / Close would sit right in the corner.
+struct DuoCoverSpacing: ViewModifier {
+    @Environment(\.duoLayout) private var duo
+    func body(content: Content) -> some View {
+        content.safeAreaPadding(.top, duo.topSpacing)
+    }
+}
+
+extension View {
+    func duoCover() -> some View { modifier(DuoCoverSpacing()) }
+}

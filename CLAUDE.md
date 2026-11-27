@@ -51,6 +51,29 @@ Always build after changes and fix errors before reporting done. Take simulator/
 - Accounts are in scope (Apple, Google, email; "Not now" must keep the app fully usable – App Store 5.1.1). **Backend not chosen yet** (Supabase vs Firebase) – build local-first, add accounts/sync after core works. Need in-app account deletion + data export (GDPR).
 - No Kotlin Multiplatform. No social feed, no ads, no streak pressure.
 
+## AI companion: Astrid (decided 27 Nov 2026, ships in v1.1)
+- An opt-in chat companion like Oura Advisor, called **Astrid** and always shown as "Astrid · AI". There is one persona and no alternative voice.
+- Persona: a kind, patient, well-read "grandmother of stories" who works like a librarian helping readers choose their next book. Traits: polite, kind, understanding, supportive, respectful, patient, knowledgeable, warm. No pet names, no emoji, no exclamation marks. She never judges the reader and always says she's an AI.
+- Four jobs: find a book, talk about a book, check my reading, plan reading. She shows at most 3 real books per answer as cards, each with a "why", and every book must match a real catalogue ID.
+- Entry points:
+  - iPhone: a floating AI button (sparkles icon, 56 pt) at the bottom right, above the tab bar.
+  - iPhone Duo: the button docks in the side bar above the nav.
+- iPhone Duo layout: Astrid is a side panel and always sits in the right pane when the phone is open. Books tapped in the chat open in the left pane.
+- Text formatting: a small Markdown subset (**bold**, *Title* with book_id, bullets, numbered steps), rendered natively with AttributedString on iOS and AnnotatedString on Android. Full rules are in `docs/ai-companion.md`.
+- Architecture: on-device AI first (Apple Foundation Models, Gemini Nano). The cloud fallback goes through a Supabase Edge Function to a budget LLM, and the API key never lives in the app.
+- Compliance: an in-app consent screen before the first chat (App Store 5.1.2(i)), a GDPR data processing agreement, and chat text deleted after 30 days.
+- Source of truth: `docs/astrid-persona.md` (voice guide and draft system prompt) and `docs/ai-companion.md` (plan, rules, costs, Figma links).
+- Figma (playground file Tq6PW3rvfMxncJfpmyjKoz):
+  - Mockups: page "🎇 Mockups", Flow 12 · Reading companion (AI)
+  - Components: page "🧱 Components", group C · Reading companion
+  - Research: page "🤖 AI companion"
+- Open decisions:
+  - cloud chat cost model (monthly cap vs small subscription)
+  - memory between chats
+  - spoiler-safe series recaps
+  - trademark and App Store check for the name "Astrid"
+- iOS status (27 Nov 2026): built early on request in `ios/QuietReading/Features/Companion/` (on-device Apple Foundation Models only, no cloud yet). Picks: the model names books → each is verified against Google Books/Open Library by title + author → unverified ones dropped. Apple's Private Cloud Compute model needs the `com.apple.developer.private-cloud-compute` entitlement (paid developer account), so `OnDeviceCompanion.privateCloudEntitled` stays false until then. Test flags: `-qsOpen companion`, `-qsCompanion demo|thinking`, `-qsCompanionAsk "…"`, `-qsCompanionModel off|device`.
+
 ## Design system rules
 Full Figma → code rules (token mapping, components, icons, assets): @docs/figma-design-system-rules.md
 - Never hard-code colours, radii, spacing, sizes, durations. iOS: `theme.palette.ink`, `theme.radii.btn`, `Space.s16`, `Size.button`, `Motion.base`. Android: `QsTheme.colors.ink`, `QsTheme.shapes.btn`, `QsSpace.s16`, `QsSize.button`, `QsMotion.base`.
@@ -61,7 +84,7 @@ Full Figma → code rules (token mapping, components, icons, assets): @docs/figm
 - **Buttons: pinned to the bottom, 24 pt above the bottom line** (screen edge, home-indicator area, tab bar or keyboard – whatever is lowest). Same on every screen, iPhone and every iPhone Duo posture. Code: `QsLayout.actionsAboveBottomLine`. Exception (Kaja's Figma): iPhone screens with the bottom tab bar keep inline content buttons (empty states, book card).
 - Touch targets ≥ 44 pt iOS / 48 dp Android. Inputs 40 high with 1 px lineStrong border; error = red border/icon/helper, label stays neutral.
 - One navigation everywhere: Home · Library · Add · Stats · Settings (Add = accent circle in design). iPhone Duo open = side rail.
-- Progress is TYPED (number keyboard opens), never +/− steppers. Current book buttons: Update + Finished.
+- Progress is TYPED (number keyboard opens), never +/− steppers. Update + Finished live in book details (and the widget +); Home has no Update/Finished buttons (Kaja, 27 Nov) – tap the book to open it.
 - Notifications: one component, always at the top under the status bar, auto-hide 4 s (6 s with action). Saving is silent.
 - Charts: one hue per theme, values on chart, one-line text summary, never colour alone.
 - Gamification "collect, don't compete": stamps, shelf of spines, flexible weekly rhythm (rest days = moon). No XP, leaderboards or resetting streaks.

@@ -175,11 +175,19 @@ private struct StampDetail: View {
             StampBadge(stamp: stamp).frame(width: Space.s80)
             Text(stamp.earned ? "Collected" : "Not yet").font(theme.headline(20, relativeTo: .title3)).foregroundStyle(theme.palette.ink)
             Text(stamp.how).font(.body).foregroundStyle(theme.palette.ink2).multilineTextAlignment(.center)
+            if !stamp.earned, let p = stamp.progress {
+                VStack(spacing: Space.s4) {
+                    QsProgressBar(value: Double(p.current) / Double(p.target), size: .s)
+                    Text("\(p.current.formatted()) of \(p.target.formatted())").font(.footnote).foregroundStyle(theme.palette.ink2)
+                }
+                .frame(maxWidth: 220)
+                .accessibilityElement(children: .combine)
+            }
         }
         .padding(Space.s24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(theme.palette.surface.ignoresSafeArea())
-        .presentationDetents([.height(260)])
+        .presentationDetents([.height(300)])
         .presentationCornerRadius(theme.radii.sheet)
     }
 }

@@ -18,6 +18,9 @@ struct UpdatePageSheet: View {
     @State private var mode: Mode = .page
     @State private var value: Int?
     @State private var note = ""
+    @State private var noteInk: Data?
+    @State private var writing = false
+    @Environment(\.duoLayout) private var noteDuo
     @FocusState private var focus: Field?
 
     private var pages: Int? { book.pageCount }
@@ -57,6 +60,9 @@ struct UpdatePageSheet: View {
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
         .presentationCornerRadius(theme.radii.sheet)
+        .sheet(isPresented: $writing) {
+            HandwritingSheet { text, ink in note = text; noteInk = ink }
+        }
         .onAppear {
             value = book.currentPage > 0 ? book.currentPage : nil
             focus = .value
@@ -156,8 +162,21 @@ struct UpdatePageSheet: View {
                 .focused($focus, equals: .note)
                 .font(.body)
                 .lineLimit(1...3)
-                .padding(.horizontal, Space.s16)
+                .padding(.leading, Space.s16)
+                .padding(.trailing, noteDuo.mode != .phone ? Size.touchIos : Space.s16)
                 .padding(.vertical, Space.s8)
+                .overlay(alignment: .trailing) {
+                    // iPhone Duo: write the note with Pencil instead.
+                    if noteDuo.mode != .phone {
+                        Button { focus = nil; writing = true } label: {
+                            Image("qs.pencil").resizable().frame(width: Size.iconM, height: Size.iconM)
+                                .foregroundStyle(noteInk == nil ? theme.palette.ink2 : theme.palette.accentInk)
+                                .frame(width: Size.touchIos, height: Size.touchIos).contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Write the note with Pencil")
+                    }
+                }
                 .frame(minHeight: Size.field)
                 .background(theme.palette.surface, in: RoundedRectangle(cornerRadius: theme.radii.field, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: theme.radii.field, style: .continuous)
@@ -199,6 +218,7 @@ struct UpdatePageSheet: View {
         guard target != previous || !note.isEmpty else { dismiss(); return }
 
         let session = ReadingSession(fromPage: previous, toPage: target, note: note.isEmpty ? nil : note)
+        session.noteDrawing = noteInk
         session.book = book
         context.insert(session)
         book.currentPage = target

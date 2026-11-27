@@ -6,6 +6,8 @@ import SwiftData
 struct LibraryView: View {
     var onAddBook: () -> Void = {}
     var onImport: () -> Void = {}
+    /// Opens a specific shelf (e.g. Home › Up next › See all → Want to read).
+    var requestedShelf: Binding<ReadingStatus?> = .constant(nil)
 
     @Environment(\.theme) private var theme
     @Environment(\.duoLayout) private var duo
@@ -71,6 +73,13 @@ struct LibraryView: View {
             SortFilterSheet(filter: $filter, books: books, shelf: shelf)
         }
         .onAppear(perform: pickInitialShelf)
+        .onChange(of: requestedShelf.wrappedValue, initial: true) { _, wanted in
+            guard let wanted else { return }
+            pickedInitialShelf = true
+            shelf = wanted
+            path = []
+            requestedShelf.wrappedValue = nil
+        }
         #if DEBUG
         // Test builds only: `-qsLibrary detail | move | sort | empty | search`.
         .task {
