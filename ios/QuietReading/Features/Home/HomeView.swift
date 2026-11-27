@@ -8,6 +8,12 @@ struct HomeView: View {
     @Environment(\.theme) private var theme
     @Query(sort: \Book.lastUpdated, order: .reverse) private var books: [Book]
     @State private var updating: Book?
+    @State private var finishing: Book?
+    @State private var finishAfterSheet: Book?
+    #if DEBUG
+    @State private var debugWhatNext = false
+    @Environment(NotificationCenterModel.self) private var debugNotifications
+    #endif
     @Environment(\.duoLayout) private var duo
 
     private var current: Book? { books.first { $0.status == .reading } }
@@ -37,9 +43,31 @@ struct HomeView: View {
                 .background(theme.palette.bg.ignoresSafeArea())
                 .toolbar(.hidden, for: .navigationBar)
             }
-            .sheet(item: $updating) { book in
-                UpdatePageSheet(book: book)
+            .sheet(item: $updating, onDismiss: {
+                // "Finished" in the sheet: show the Finished moment once the sheet has gone.
+                if let book = finishAfterSheet { finishAfterSheet = nil; finishing = book }
+            }) { book in
+                UpdatePageSheet(book: book, onFinish: { finishAfterSheet = book })
             }
+            .fullScreenCover(item: $finishing) { book in
+                FinishFlow(book: book)
+            }
+            #if DEBUG
+            // Test builds only: `-qsOpen update | finish | saved | whatnext`.
+            .task {
+                guard let current else { return }
+                switch UserDefaults.standard.string(forKey: "qsOpen") {
+                case "update": updating = current
+                case "finish": finishing = current
+                case "saved": debugNotifications.show("Page \(current.currentPage) saved", message: "About 2 h 50 min left. Lovely.", actionTitle: "Undo") {}
+                case "whatnext": debugWhatNext = true
+                default: break
+                }
+            }
+            .fullScreenCover(isPresented: $debugWhatNext) {
+                NavigationStack { WhatNextView(onDone: { debugWhatNext = false }) }
+            }
+            #endif
         }
     }
 
@@ -112,7 +140,7 @@ struct HomeView: View {
 
     @ViewBuilder private var pinnedActions: some View {
         if let current {
-            BookActions(book: current, onUpdate: { updating = current })
+            BookActions(onUpdate: { updating = current }, onFinish: { finishing = current })
                 .padding(.horizontal, Space.s20)
                 .padding(.top, Space.s12)
                 // Tabletop has the bottom tab bar below; elsewhere keep clear of the edge (placement rules).
@@ -136,7 +164,7 @@ struct HomeView: View {
 
     @ViewBuilder private var currentSection: some View {
         if let current {
-            CurrentBookCard(book: current, onUpdate: { updating = current }, showsActions: !pinActions)
+            CurrentBookCard(book: current, onUpdate: { updating = current }, onFinish: { finishing = current }, showsActions: !pinActions)
         } else {
             InfoBanner(message: "No book in progress. Pick one from Up next or your library.")
         }
@@ -215,8 +243,18 @@ struct HomeView: View {
 private struct CurrentBookCard: View {
     let book: Book
     let onUpdate: () -> Void
+    let onFinish: () -> Void
     var showsActions = true
     @Environment(\.theme) private var theme
+
+    /// "About 3 h 20 min left" – an estimate (typical pace until timed sessions exist).
+    @ViewBuilder private var timeLeft: some View {
+        if let minutes = book.minutesLeft(), minutes > 0 {
+            Text(ReadingTime.left(minutes))
+                .font(.footnote)
+                .foregroundStyle(theme.palette.ink2)
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.s16) {
@@ -239,11 +277,13 @@ private struct CurrentBookCard: View {
                         Text("\(pages) pages")
                             .font(.footnote)
                             .foregroundStyle(theme.palette.ink2)
+                        timeLeft
                     } else if let progress = book.progress, let pages = book.pageCount {
                         QsProgressBar(value: progress)
                         Text("p. \(book.currentPage) of \(pages) · \(progress, format: .percent.precision(.fractionLength(0)))")
                             .font(.footnote)
                             .foregroundStyle(theme.palette.ink2)
+                        timeLeft
                     } else if book.currentPage > 0 {
                         Text("p. \(book.currentPage)")
                             .font(.footnote)
@@ -254,7 +294,7 @@ private struct CurrentBookCard: View {
             }
             .accessibilityElement(children: .combine)
             if showsActions {
-                BookActions(book: book, onUpdate: onUpdate)
+                BookActions(onUpdate: onUpdate, onFinish: onFinish)
             }
         }
         .padding(Space.s16)
@@ -264,101 +304,17 @@ private struct CurrentBookCard: View {
     }
 }
 
-/// Update + Finished for the current book.
+/// Update + Finished for the current book. Finished opens the Finished moment (Flow 3 › Step 4).
 private struct BookActions: View {
-    let book: Book
     let onUpdate: () -> Void
-    @Environment(\.modelContext) private var context
+    let onFinish: () -> Void
 
     var body: some View {
         HStack(spacing: Space.s12) {
             Button("Update", action: onUpdate)
                 .buttonStyle(QsButtonStyle(priority: .primary))
-            Button("Finished") {
-                book.status = .read
-                book.dateFinished = .now
-                if let pages = book.pageCount { book.currentPage = pages }
-                book.lastUpdated = .now
-                try? context.save()
-            }
-            .buttonStyle(QsButtonStyle(priority: .secondary))
-        }
-    }
-}
-
-/// Flow 3 › Step 2 · Update page: typed page (number keyboard opens straight away),
-/// Finished + Update side by side, 16 pt above the keyboard (button placement rules).
-private struct UpdatePageSheet: View {
-    let book: Book
-    @Environment(\.theme) private var theme
-    @Environment(\.dismiss) private var dismiss
-    @Environment(\.modelContext) private var context
-    @State private var page: Int?
-    @FocusState private var focused: Bool
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Space.s16) {
-            Text("Where are you now?")
-                .font(theme.headline(22, relativeTo: .title2))
-                .foregroundStyle(theme.palette.ink)
-                .accessibilityAddTraits(.isHeader)
-            VStack(alignment: .leading, spacing: Space.s8) {
-                Text("Page")
-                    .font(.footnote)
-                    .foregroundStyle(theme.palette.ink2)
-                HStack {
-                    TextField("Page", value: $page, format: .number)
-                        .keyboardType(.numberPad)
-                        .focused($focused)
-                        .font(.body)
-                    if let pages = book.pageCount {
-                        Text("of \(pages)")
-                            .font(.subheadline)
-                            .foregroundStyle(theme.palette.ink2)
-                    }
-                }
-                .padding(.horizontal, Space.s12)
-                .frame(minHeight: Size.field)
-                .background(theme.palette.surface, in: RoundedRectangle(cornerRadius: theme.radii.field, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: theme.radii.field, style: .continuous)
-                    .strokeBorder(theme.palette.lineStrong, lineWidth: Size.stroke))
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, Space.s20)
-        .padding(.top, Space.s24)
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            HStack(spacing: Space.s12) {
-                Button("Finished") {
-                    book.status = .read
-                    book.dateFinished = .now
-                    if let pages = book.pageCount { book.currentPage = pages }
-                    book.lastUpdated = .now
-                    try? context.save()
-                    dismiss()
-                }
+            Button("Finished", action: onFinish)
                 .buttonStyle(QsButtonStyle(priority: .secondary))
-                Button("Update") {
-                    if let page {
-                        book.currentPage = max(0, book.pageCount.map { min(page, $0) } ?? page)
-                        book.lastUpdated = .now
-                        try? context.save()
-                    }
-                    dismiss()
-                }
-                .buttonStyle(QsButtonStyle(priority: .primary))
-            }
-            .padding(.horizontal, Space.s20)
-            .padding(.top, Space.s16)
-            .padding(.bottom, QsLayout.actionsAboveBottomLine) // above the keyboard
-            .background(theme.palette.bg)
-        }
-        .background(theme.palette.bg.ignoresSafeArea())
-        .presentationDetents([.large])
-        .presentationDragIndicator(.visible)
-        .onAppear {
-            page = book.currentPage > 0 ? book.currentPage : nil
-            focused = true
         }
     }
 }

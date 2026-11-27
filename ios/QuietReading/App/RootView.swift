@@ -14,6 +14,7 @@ struct RootView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.colorSchemeContrast) private var contrast
     @State private var importSession = ImportSession()
+    @State private var notifications = NotificationCenterModel()
 
     private var resolvedTheme: ThemeID {
         if contrast == .increased { return .highContrast }
@@ -34,7 +35,9 @@ struct RootView: View {
             }
             .background(resolvedTheme.palette.bg.ignoresSafeArea())
         }
+        .modifier(QsNotificationHost())
         .environment(importSession)
+        .environment(notifications)
         #if DEBUG
         .modifier(DuoProbe())
         #endif
