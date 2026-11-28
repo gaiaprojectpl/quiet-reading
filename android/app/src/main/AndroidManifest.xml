@@ -5,9 +5,18 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Astrid: speak a question (speech to text, audio never stored). -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
+
+    <!-- Android 11+: lets the app find the system speech recogniser for Astrid's mic. -->
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+    </queries>
 
     <application
         android:name=".QuietReadingApplication"
@@ -23,7 +32,7 @@
             android:name=".MainActivity"
             android:exported="true"
             android:label="@string/app_name"
-            android:theme="@style/Theme.QuietReading"
+            android:theme="@style/Theme.QuietReading.Starting"
             android:launchMode="singleTop"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
@@ -55,6 +64,30 @@
             android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
         </provider>
+        <!-- Home screen widgets (Glance). Plus styles are chosen in WidgetStyleActivity. -->
+        <activity android:name=".widget.WidgetStyleActivity" android:exported="true" android:theme="@style/Theme.QuietReading">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" /></intent-filter>
+        </activity>
+        <receiver android:name=".widget.ReadingNowReceiver" android:exported="true" android:label="@string/widget_reading_now_name">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_reading_now" />
+        </receiver>
+        <receiver android:name=".widget.GoalReceiver" android:exported="true" android:label="@string/widget_goal_name">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_goal" />
+        </receiver>
+        <receiver android:name=".widget.StyledReadingReceiver" android:exported="true" android:label="@string/widget_reading_plus_name">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_reading_plus" />
+        </receiver>
+        <receiver android:name=".widget.ThisWeekReceiver" android:exported="true" android:label="@string/widget_this_week_name">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_this_week" />
+        </receiver>
+        <receiver android:name=".widget.QuoteReceiver" android:exported="true" android:label="@string/widget_quote_name">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_quote" />
+        </receiver>
     </application>
 
 </manifest>

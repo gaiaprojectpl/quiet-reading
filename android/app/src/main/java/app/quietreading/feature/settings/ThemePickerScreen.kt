@@ -56,7 +56,7 @@ import app.quietreading.designsystem.shapes
 
 /**
  * Flow 5 › App theme: theme cards drawn in their own colours. Free first, then Plus.
- * Without Plus a Plus theme shows a lock and says it's part of Plus (purchase comes with the Plus screen).
+ * Tapping a locked Plus theme tries it on across the app (Live preview) instead of locking a door.
  */
 @Composable
 fun ThemePickerScreen(onBack: () -> Unit) {
@@ -72,7 +72,7 @@ fun ThemePickerScreen(onBack: () -> Unit) {
         val locked = id.requiresPlus && !plus
         ThemeCard(id, selected = !locked && id == chosen, locked = locked, modifier = m) {
             haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
-            if (locked) notifier.show("Part of Plus", "${id.displayName} comes with Quiet Reading Plus.", NoticeKind.Info)
+            if (locked) app.quietreading.feature.plus.PlusPreview.theme = id
             else setTheme(id.name)
         }
     }
@@ -94,7 +94,7 @@ fun ThemePickerScreen(onBack: () -> Unit) {
                 if (pair.size == 1) Spacer(Modifier.weight(1f))
             }
         }
-        if (!plus) Text("Plus themes come with Quiet Reading Plus, a one-time purchase.", style = QsType.footnote, color = c.ink2)
+        if (!plus) Text("Tap a Plus theme to try it on. Nothing changes until you choose to unlock.", style = QsType.footnote, color = c.ink2)
 
         SectionLabel("Accessibility · always free", Modifier.padding(top = QsSpace.s8))
         QsListCard(rows = listOf({ ToggleRow(R.drawable.ic_qs_eye, "High contrast", checked = forceHC) { setForceHC(it) } }))

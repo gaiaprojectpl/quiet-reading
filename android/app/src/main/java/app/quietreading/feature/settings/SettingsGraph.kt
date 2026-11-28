@@ -147,12 +147,20 @@ fun SettingsScreen(nav: AppNav) {
             QsIcon(R.drawable.ic_qs_chevron, tint = c.ink2, size = QsSize.iconS + QsSpace.s2)
         }
 
+        val (plusUnlocked, _) = rememberPref(Keys.plusUnlocked, false)
         SettingsSection("Appearance", listOf(
             { QsListRow(R.drawable.ic_qs_palette, "App theme", value = themeName) { nav.controller.navigate(SettingsRoutes.THEME) } },
             { QsListRow(R.drawable.ic_qs_target, "Reading goal", value = if (goal > 0) "$goal books" else "Not set") { editingGoal = true } },
         ))
 
         SettingsSection("Reading", listOf(
+            {
+                // Flow 12 · Astrid & privacy.
+                val astrid = app.quietreading.feature.companion.rememberCompanion()
+                QsListRow(R.drawable.ic_qs_sparkles, "Astrid · reading companion", subtitle = if (astrid.isEnabled) "On · AI chat and book ideas" else "Off") {
+                    nav.controller.navigate(app.quietreading.feature.companion.CompanionRoutes.SETTINGS)
+                }
+            },
             {
                 ReminderRow(reminderOn, timeText(context, reminderMinutes), onEditTime = { editingReminder = true }) { on ->
                     if (on) requestOn("reminder") else { setReminderOn(false); ReminderScheduler.cancel(context) }
@@ -167,6 +175,15 @@ fun SettingsScreen(nav: AppNav) {
                 val line = if (lastImport > 0) "$lastImportSource · imported ${DateUtils.getRelativeTimeSpanString(lastImport).toString().lowercase()}"
                     else "Import from Goodreads or StoryGraph"
                 QsListRow(R.drawable.ic_qs_link, "Sources", subtitle = line) { nav.controller.navigate(SettingsRoutes.SOURCES) }
+            },
+        ))
+
+        SettingsSection("Quiet Reading Plus", listOf(
+            {
+                QsListRow(R.drawable.ic_qs_crown, "Quiet Reading Plus",
+                    subtitle = if (plusUnlocked) "Thank you. Everything is unlocked." else "Three more themes, one payment") {
+                    nav.controller.navigate("plus")
+                }
             },
         ))
 

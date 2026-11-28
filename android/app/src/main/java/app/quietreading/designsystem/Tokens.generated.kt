@@ -141,3 +141,27 @@ object QsOpacity {
     const val scrim = 0.4f
     const val pressed = 0.12f
 }
+
+/** Plus widget styles (Figma › Widgets Final). Soft = pastel tints, Colourful = gradients, Modern = graphite. */
+enum class WidgetStyleId(val displayName: String, val family: String) {
+    Blush("Blush", "soft"),
+    Lilac("Lilac", "soft"),
+    Butter("Butter", "soft"),
+    SageMist("Sage mist", "soft"),
+    Sunset("Sunset", "colourful"),
+    Pop("Pop", "colourful"),
+    Graphite("Graphite", "modern");
+
+    val palette: WidgetPalette get() = when (this) {
+        Blush -> WidgetPalette(background = listOf(Color(0xFFFCF1EE), Color(0xFFF3DADB)), ink = Color(0xFF4B3540), ink2 = Color(0xFF755D65), accent = Color(0xFFD39AA4), track = Color(0xBFFFFFFF), button = Color(0xB3FFFFFF), buttonInk = Color(0xFF4B3540), hairline = Color(0x99FFFFFF))
+        Lilac -> WidgetPalette(background = listOf(Color(0xFFF5F1FA), Color(0xFFE3DAF0)), ink = Color(0xFF3F3550), ink2 = Color(0xFF675D77), accent = Color(0xFFA893CB), track = Color(0xBFFFFFFF), button = Color(0xB3FFFFFF), buttonInk = Color(0xFF3F3550), hairline = Color(0x99FFFFFF))
+        Butter -> WidgetPalette(background = listOf(Color(0xFFFDF8EC), Color(0xFFF4E8C8)), ink = Color(0xFF4A3F2C), ink2 = Color(0xFF74674E), accent = Color(0xFFD3B26A), track = Color(0xBFFFFFFF), button = Color(0xB3FFFFFF), buttonInk = Color(0xFF4A3F2C), hairline = Color(0x99FFFFFF))
+        SageMist -> WidgetPalette(background = listOf(Color(0xFFF3F7F1), Color(0xFFDDE8DA)), ink = Color(0xFF33423A), ink2 = Color(0xFF5B6A62), accent = Color(0xFF8FAF98), track = Color(0xBFFFFFFF), button = Color(0xB3FFFFFF), buttonInk = Color(0xFF33423A), hairline = Color(0x99FFFFFF))
+        Sunset -> WidgetPalette(background = listOf(Color(0xFFFFC3A6), Color(0xFFF59AB4), Color(0xFFB9A2E0)), ink = Color(0xFF3A1F33), ink2 = Color(0xFF3A1F33), accent = Color(0xFF3A1F33), track = Color(0x66FFFFFF), button = Color(0xFF3A1F33), buttonInk = Color(0xFFFFFFFF), hairline = Color(0x00FFFFFF))
+        Pop -> WidgetPalette(background = listOf(Color(0xFFFFE18A), Color(0xFFFFB38A), Color(0xFFFF8FA3)), ink = Color(0xFF3B2318), ink2 = Color(0xFF3B2318), accent = Color(0xFF3B2318), track = Color(0x66FFFFFF), button = Color(0xFF3B2318), buttonInk = Color(0xFFFFFFFF), hairline = Color(0x00FFFFFF))
+        Graphite -> WidgetPalette(background = listOf(Color(0xFF202022), Color(0xFF202022)), ink = Color(0xFFF3F1EE), ink2 = Color(0xFFA3A09B), accent = Color(0xFFF3F1EE), track = Color(0x47F3F1EE), button = Color(0xFFF3F1EE), buttonInk = Color(0xFF202022), hairline = Color(0x1FFFFFFF))
+    }
+}
+
+@Immutable
+data class WidgetPalette(val background: List<Color>, val ink: Color, val ink2: Color, val accent: Color, val track: Color, val button: Color, val buttonInk: Color, val hairline: Color)

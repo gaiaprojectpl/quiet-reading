@@ -56,7 +56,7 @@ sw += swift_enum("Space", T["space"]) + [""] + swift_enum("Size", T["size"]) + [
 sw += ["/// Durations in seconds.", "nonisolated public enum Motion {"] + [f"    public static let {k}: Double = {v/1000}" for k, v in T["motion"].items()] + ["}", ""]
 sw += swift_enum("Opacity", T["opacity"], "Double")
 
-# Plus widget styles (Soft / Colourful / Modern). iOS only for now; Android widgets come later.
+# Plus widget styles (Soft / Colourful / Modern), for both platforms.
 ws = {k: v for k, v in T.get("widgetStyles", {}).items() if not k.startswith("_")}
 if ws:
     def col(h):
@@ -108,6 +108,20 @@ kt += ["}", "", "object QsSpace {"] + [f"    val {k} = {v}.dp" for k, v in T["sp
        "object QsSize {"] + [f"    val {k} = {v}.dp" for k, v in T["size"].items()] + ["}", "",
        "/** Durations in milliseconds. */", "object QsMotion {"] + [f"    const val {k} = {v}" for k, v in T["motion"].items()] + ["}", "",
        "object QsOpacity {"] + [f"    const val {k} = {v}f" for k, v in T["opacity"].items()] + ["}"]
+if ws:
+    def kcol(h):
+        h = hx(h)
+        return f"Color(0x{h[6:8] if len(h) == 8 else 'FF'}{h[:6]})"
+    kt += ["", "/** Plus widget styles (Figma › Widgets Final). Soft = pastel tints, Colourful = gradients, Modern = graphite. */",
+           "enum class WidgetStyleId(val displayName: String, val family: String) {"]
+    kt += [f'    {k[0].upper()+k[1:]}("{v["name"]}", "{v["family"]}"),' for k, v in ws.items()]
+    kt[-1] = kt[-1].rstrip(",") + ";"
+    kt += ["", "    val palette: WidgetPalette get() = when (this) {"]
+    for k, v in ws.items():
+        bg = ", ".join(kcol(c) for c in v["background"])
+        kt.append(f"        {k[0].upper()+k[1:]} -> WidgetPalette(background = listOf({bg}), ink = {kcol(v['ink'])}, ink2 = {kcol(v['ink2'])}, accent = {kcol(v['accent'])}, track = {kcol(v['track'])}, button = {kcol(v['button'])}, buttonInk = {kcol(v['buttonInk'])}, hairline = {kcol(v['hairline'])})")
+    kt += ["    }", "}", "", "@Immutable",
+           "data class WidgetPalette(val background: List<Color>, val ink: Color, val ink2: Color, val accent: Color, val track: Color, val button: Color, val buttonInk: Color, val hairline: Color)"]
 and_ = ROOT / "android/app/src/main/java/app/quietreading/designsystem/Tokens.generated.kt"
 and_.parent.mkdir(parents=True, exist_ok=True); and_.write_text("\n".join(kt) + "\n")
 print("wrote", ios.relative_to(ROOT), "and", and_.relative_to(ROOT))

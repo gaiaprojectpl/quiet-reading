@@ -3,4 +3,12 @@
     <style name="Theme.QuietReading" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@color/qs_bg</item>
     </style>
+
+    <!-- Flow 11 · Splash: the system launch screen (sage + cream "q"), then the app's own gentle animation. -->
+    <style name="Theme.QuietReading.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/qs_brand_accent</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_logo</item>
+        <item name="windowSplashScreenAnimationDuration">0</item>
+        <item name="postSplashScreenTheme">@style/Theme.QuietReading</item>
+    </style>
 </resources>

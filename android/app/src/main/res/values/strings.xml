@@ -1,3 +1,13 @@
 <resources>
     <string name="app_name">Quiet Reading</string>
+    <string name="widget_reading_now_name">Reading now</string>
+    <string name="widget_reading_now_description">The book you\'re reading, with one tap to update your page.</string>
+    <string name="widget_goal_name">Reading goal</string>
+    <string name="widget_goal_description">Books finished this year. Goals are optional and never shame.</string>
+    <string name="widget_reading_plus_name">Reading now · Plus</string>
+    <string name="widget_reading_plus_description">Soft and Colourful styles. Large shows what\'s up next.</string>
+    <string name="widget_this_week_name">This week · Plus</string>
+    <string name="widget_this_week_description">Pages you read each day this week, and your book.</string>
+    <string name="widget_quote_name">Quote · Plus</string>
+    <string name="widget_quote_description">A line you saved, a new one each day.</string>
 </resources>

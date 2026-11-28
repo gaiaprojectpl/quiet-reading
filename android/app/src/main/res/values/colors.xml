@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Launch background only. In-app colours come from designsystem/Tokens.generated.kt -->
+    <!-- Launch only. In-app colours come from designsystem/Tokens.generated.kt -->
     <color name="qs_bg">#FFFBF5EF</color>
+    <!-- Splash brand colours = Peach & Sage (the launch screen can't know the reader's theme). -->
+    <color name="qs_brand_accent">#FF557260</color>
+    <color name="qs_brand_bg">#FFFBF5EF</color>
 </resources>

@@ -20,6 +20,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.compose.NavHost
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -45,6 +46,11 @@ import app.quietreading.feature.add.AddSheet
 import app.quietreading.feature.add.addGraph
 import app.quietreading.feature.book.bookGraph
 import app.quietreading.feature.home.homeGraph
+import app.quietreading.widget.WidgetRefresher
+import app.quietreading.feature.plus.PlusAccess
+import app.quietreading.feature.plus.PlusPreview
+import app.quietreading.feature.plus.PlusPreviewBar
+import app.quietreading.feature.plus.PlusRoutes
 import app.quietreading.feature.plus.plusGraph
 import app.quietreading.feature.companion.companionGraph
 import app.quietreading.feature.companion.CompanionButtonSlot
@@ -59,6 +65,7 @@ import app.quietreading.feature.stats.statsGraph
 @Composable
 fun QuietReadingApp(link: String? = null, onLinkHandled: () -> Unit = {}) {
     val app = LocalApp.current
+    val context = LocalContext.current
     val (themeRaw, _) = rememberPref(Keys.theme, ThemeId.PeachSage.name)
     val (forceHC, _) = rememberPref(Keys.forceHighContrast, false)
     val (plus, _) = rememberPref(Keys.plusUnlocked, false)
@@ -73,7 +80,12 @@ fun QuietReadingApp(link: String? = null, onLinkHandled: () -> Unit = {}) {
     val chosen = ThemeId.entries.firstOrNull { it.name == themeRaw || it.name.equals(themeRaw, true) } ?: ThemeId.PeachSage
     val notifier = remember { Notifier() }
 
-    QuietReadingTheme(chosen, forceHighContrast = forceHC, isPlus = plus) {
+    // Flow 5 › Live preview: a Plus theme being tried on; a locked theme never sticks.
+    val preview = PlusPreview.theme?.takeIf { !plus }
+    LaunchedEffect(plus) { if (plus) PlusPreview.theme = null }
+    LaunchedEffect(Unit) { PlusAccess.get(context).refreshEntitlement() }
+
+    QuietReadingTheme(preview ?: chosen, forceHighContrast = forceHC, isPlus = plus || preview != null) {
         CompositionLocalProvider(LocalNotifier provides notifier) {
             NotificationHost(notifier) {
                 Box(Modifier.fillMaxSize().background(QsTheme.colors.bg)) {
@@ -88,6 +100,7 @@ fun QuietReadingApp(link: String? = null, onLinkHandled: () -> Unit = {}) {
             }
         }
     }
+    WidgetRefresher()
     // Covers fill in by themselves: at launch and whenever books arrive (import, add).
     LaunchedEffect(Unit) {
         app.library.books.map { b -> b.count() }.distinctUntilChanged().collectLatest {
@@ -135,6 +148,8 @@ private fun MainTabs(link: String?, onLinkHandled: () -> Unit) {
     }
 
     val app = LocalApp.current
+    // Trying on a theme shows it where it matters most: Home.
+    LaunchedEffect(PlusPreview.theme) { if (PlusPreview.theme != null) nav.openTab(Routes.HOME) }
     LaunchedEffect(link) {
         val url = link ?: return@LaunchedEffect
         onLinkHandled()
@@ -145,7 +160,10 @@ private fun MainTabs(link: String?, onLinkHandled: () -> Unit) {
     if (wide && showNav) {
         Row(Modifier.fillMaxSize()) {
             QsTabRail(tab, select, onAdd = { showAdd = true }, top = { CompanionButtonSlot(nav, inRail = true) })
-            host(Modifier.weight(1f))
+            Column(Modifier.weight(1f)) {
+                host(Modifier.weight(1f))
+                PlusPreviewBar(onGetPlus = { controller.navigate(PlusRoutes.PLUS) })
+            }
         }
     } else {
         Column(Modifier.fillMaxSize()) {
@@ -153,6 +171,7 @@ private fun MainTabs(link: String?, onLinkHandled: () -> Unit) {
                 host(Modifier.fillMaxSize())
                 if (showNav) CompanionButtonSlot(nav, Modifier.align(Alignment.BottomEnd))
             }
+            if (showNav) PlusPreviewBar(onGetPlus = { controller.navigate(PlusRoutes.PLUS) })
             if (showNav) QsTabBar(tab, select, onAdd = { showAdd = true })
         }
     }
