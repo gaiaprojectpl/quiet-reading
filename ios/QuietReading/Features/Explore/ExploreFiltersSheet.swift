@@ -122,7 +122,7 @@ struct ExploreFiltersSheet: View {
     }
 
     private func group<C: View>(_ title: LocalizedStringKey, @ViewBuilder content: () -> C) -> some View {
-        VStack(alignment: .leading, spacing: Space.s12) {
+        VStack(alignment: .leading, spacing: Space.s8) {
             Text(title).textCase(.uppercase)
                 .font(.caption.weight(.semibold)).tracking(0.6)
                 .foregroundStyle(theme.palette.ink2)

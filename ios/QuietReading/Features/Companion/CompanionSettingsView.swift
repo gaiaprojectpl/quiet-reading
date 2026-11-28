@@ -7,6 +7,7 @@ struct CompanionSettingsView: View {
     @Environment(CompanionStore.self) private var companion
     @AppStorage(CompanionKeys.nudge) private var nudge = false
     @AppStorage(CompanionKeys.includeNotes) private var includeNotes = false
+    @AppStorage(CompanionKeys.includeProfile) private var includeProfile = false
     @AppStorage(CompanionKeys.historyDays) private var historyDays = 30
     @AppStorage(CompanionKeys.leftPane) private var leftPane = false
     @Environment(\.duoLayout) private var duo
@@ -14,9 +15,8 @@ struct CompanionSettingsView: View {
     @State private var showSees = false
 
     var body: some View {
-        ScrollView {
+        PinnedBackScroll(backTitle: "Back") {
             VStack(alignment: .leading, spacing: Space.s16) {
-                HStack { QsBackButton(title: "Back"); Spacer() }
                 ScreenTitle(title: "Astrid & privacy")
                 QsListCard {
                     toggle("Astrid, reading companion", "AI chat, book ideas and reading insights", isOn: Binding(
@@ -26,6 +26,8 @@ struct CompanionSettingsView: View {
                     toggle("Gentle nudge on Home", "One card near the end of a book, never a notification", isOn: $nudge)
                         .disabled(!companion.isEnabled)
                     toggle("Include my notes", "Lets Astrid talk about what you wrote", isOn: $includeNotes)
+                        .disabled(!companion.isEnabled)
+                    toggle("Include my profile", "Your first name and “About me”, so answers feel more personal", isOn: $includeProfile)
                         .disabled(!companion.isEnabled)
                     if duo.mode != .phone {
                         toggle("Astrid on the left page", "iPhone Duo, open: swap sides for left-handed use", isOn: $leftPane)
@@ -106,6 +108,7 @@ struct CompanionSettingsView: View {
 private struct WhatItSeesSheet: View {
     @Environment(\.theme) private var theme
     @AppStorage(CompanionKeys.includeNotes) private var includeNotes = false
+    @AppStorage(CompanionKeys.includeProfile) private var includeProfile = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.s12) {
@@ -113,9 +116,20 @@ private struct WhatItSeesSheet: View {
                 .accessibilityAddTraits(.isHeader)
             group("It can see", [String(localized: "Titles, authors, ratings and moods of your books"),
                                  String(localized: "Your shelves, reading progress and goal")]
-                  + (includeNotes ? [String(localized: "Your reading notes (you turned this on)")] : []))
-            group("It never sees", [String(localized: "Your name, email, photo or location")]
+                  + (includeNotes ? [String(localized: "Your reading notes (you turned this on)")] : [])
+                  + (includeProfile ? [String(localized: "Your first name and “About me” (you turned this on)")] : []))
+            group("It never sees", [includeProfile ? String(localized: "Your email, photo or location")
+                                                   : String(localized: "Your name, email, photo or location")]
                   + (includeNotes ? [] : [String(localized: "Your notes")]))
+            // The same switch here, so the reader can decide while reading the list.
+            Toggle(isOn: $includeProfile) {
+                VStack(alignment: .leading, spacing: Space.s2) {
+                    Text("Astrid sees my profile").font(.body.weight(.medium)).foregroundStyle(theme.palette.ink)
+                    Text("First name and “About me” only").font(.footnote).foregroundStyle(theme.palette.ink2)
+                }
+            }
+            .tint(theme.palette.accent)
+            .padding(.vertical, Space.s4)
             Text("Everything runs on your iPhone. To find book ideas, only a short search like “cosy fantasy” goes to Google Books and Open Library.")
                 .font(.footnote).foregroundStyle(theme.palette.ink2)
             Spacer(minLength: 0)

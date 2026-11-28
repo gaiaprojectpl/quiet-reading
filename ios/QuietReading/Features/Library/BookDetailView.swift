@@ -49,7 +49,6 @@ struct BookDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Space.s16) {
-                topBar
                 header
                 QsSegmented(options: [(DetailTab.progress, String(localized: "Progress")),
                                       (.quotes, String(localized: "Quotes · \(book.quotes.count)")),
@@ -71,6 +70,10 @@ struct BookDetailView: View {
             .padding(.horizontal, Space.s20)
             .padding(.top, Space.s8)
             .padding(.bottom, Space.s40)
+        }
+        // Back, share and more stay pinned at the top while the page scrolls.
+        .safeAreaInset(edge: .top, spacing: 0) {
+            topBar.padding(.horizontal, Space.s12).background(theme.palette.bg)
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if pinActions, tab == .quotes {

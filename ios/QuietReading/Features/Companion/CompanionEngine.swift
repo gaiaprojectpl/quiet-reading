@@ -275,6 +275,8 @@ final class OnDeviceCompanion: CompanionAnswering {
         if !c.notForMe.isEmpty { p += "\nThey said not for me to: " + c.notForMe.suffix(10).joined(separator: "; ") + ". Suggest something different from these." }
         if !c.liked.isEmpty { p += "\nSuggestions they found helpful: " + c.liked.suffix(6).joined(separator: "; ") + "." }
         if !c.notes.isEmpty { p += "\nTheir recent notes: " + c.notes.joined(separator: " / ") }
+        if let name = c.firstName { p += "\nTheir first name is \(name). Use it rarely, never as a pet name." }
+        if let about = c.about { p += "\nIn their own words: \(about)" }
         return p
     }
 

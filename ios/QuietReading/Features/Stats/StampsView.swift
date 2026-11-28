@@ -58,9 +58,8 @@ struct StampsView: View {
     private var stamps: [Stamp] { Stamp.all(stats, autumnDone: joined && (challenge?.done ?? false)) }
 
     var body: some View {
-        ScrollView {
+        PinnedBackScroll(backTitle: "Stats") {
             VStack(alignment: .leading, spacing: Space.s16) {
-                HStack { QsBackButton(title: "Stats"); Spacer() }
                 ScreenTitle(title: "Reading stamps")
                 Text("Collect, don’t compete. Stamps never expire and nothing resets.")
                     .font(.subheadline).foregroundStyle(theme.palette.ink2)

@@ -6,6 +6,8 @@ import os
 nonisolated enum CompanionKeys {
     static let enabled = "companionEnabled"          // set by the consent screen
     static let includeNotes = "companionIncludeNotes"
+    /// Off by default: Astrid may use the reader's first name and "About me" from their profile.
+    static let includeProfile = "companionIncludeProfile"
     static let nudge = "companionNudge"              // one Home card near the end of a book
     static let historyDays = "companionHistoryDays"  // 30 (default), 7, 0 = don't keep
     static let notForMe = "companionNotForMe"        // titles the reader turned down
@@ -103,6 +105,7 @@ final class CompanionStore {
         let disliked = messages.filter { $0.feedback == -1 }.flatMap { $0.picks.map(\.title) }
         let context = CompanionContext(books: books, goal: goal,
                                        includeNotes: UserDefaults.standard.bool(forKey: CompanionKeys.includeNotes),
+                                       includeProfile: UserDefaults.standard.bool(forKey: CompanionKeys.includeProfile),
                                        notForMe: notForMe + disliked, liked: liked)
         task = Task { [weak self] in
             guard let self else { return }
@@ -239,7 +242,7 @@ final class CompanionStore {
 }
 
 /// What the companion knows about the reader. Titles, authors, ratings, moods and progress only:
-/// never the name, email, photo or location. Notes only when the reader turns them on.
+/// never the email, photo or location. Notes, and the first name + "About me", only when the reader turns them on.
 nonisolated struct CompanionContext: Sendable {
     struct Line: Sendable { let title: String; let author: String; let stars: Double?; let moods: [String]; let pages: Int? }
     let finished: [Line]
@@ -256,9 +259,17 @@ nonisolated struct CompanionContext: Sendable {
     let currentTitle: String?
     let libraryKeys: Set<String>
     let liked: [String]
+    /// First name, only with "Include my profile" on.
+    let firstName: String?
+    /// "About me" from the profile, only with "Include my profile" on.
+    let about: String?
 
-    @MainActor init(books: [Book], goal: Int, includeNotes: Bool, notForMe: [String], liked: [String] = []) {
+    @MainActor init(books: [Book], goal: Int, includeNotes: Bool, includeProfile: Bool = false, notForMe: [String], liked: [String] = []) {
         self.liked = liked
+        let d = UserDefaults.standard
+        let first = d.string(forKey: ProfileKeys.name)?.split(separator: " ").first.map(String.init)
+        firstName = includeProfile ? first.flatMap { $0.isEmpty ? nil : $0 } : nil
+        about = includeProfile ? d.string(forKey: ProfileKeys.about).flatMap { $0.isEmpty ? nil : String($0.prefix(200)) } : nil
         let stats = ReadingStats(books: books)
         func line(_ b: Book) -> Line {
             Line(title: b.title, author: b.author, stars: b.stars ?? b.rating.map(Double.init), moods: b.moods, pages: b.pageCount)

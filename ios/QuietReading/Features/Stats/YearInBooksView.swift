@@ -17,9 +17,8 @@ struct YearInBooksView: View {
     }
 
     var body: some View {
-        ScrollView {
+        PinnedBackScroll(backTitle: "Stats") {
             VStack(alignment: .leading, spacing: Space.s16) {
-                HStack { QsBackButton(title: "Stats"); Spacer() }
                 ScreenTitle(title: "Your \(String(year)) in books")
                 Text(line).font(.subheadline).foregroundStyle(theme.palette.ink2)
                 if books.isEmpty {

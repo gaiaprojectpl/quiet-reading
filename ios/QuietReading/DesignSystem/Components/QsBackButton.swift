@@ -51,3 +51,27 @@ extension UINavigationController: @retroactive UIGestureRecognizerDelegate {
         viewControllers.count > 1
     }
 }
+
+/// A pushed screen's scrolling content with "‹ Back" pinned above it, so the way back is always
+/// visible (like iOS Settings), on iPhone and on iPhone Duo, closed or open.
+struct PinnedBackScroll<Content: View>: View {
+    let backTitle: LocalizedStringKey
+    var action: (() -> Void)? = nil
+    @ViewBuilder var content: Content
+    @Environment(\.theme) private var theme
+
+    init(backTitle: LocalizedStringKey, action: (() -> Void)? = nil, @ViewBuilder content: () -> Content) {
+        self.backTitle = backTitle
+        self.action = action
+        self.content = content()
+    }
+
+    var body: some View {
+        ScrollView { content }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                HStack { QsBackButton(title: backTitle, action: action); Spacer() }
+                    .padding(.horizontal, Space.s12)
+                    .background(theme.palette.bg)
+            }
+    }
+}

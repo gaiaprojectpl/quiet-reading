@@ -367,9 +367,8 @@ struct ThemePickerView: View {
     private let columns = [GridItem(.flexible(), spacing: Space.s12), GridItem(.flexible(), spacing: Space.s12)]
 
     var body: some View {
-        ScrollView {
+        PinnedBackScroll(backTitle: "Settings") {
             VStack(alignment: .leading, spacing: Space.s16) {
-                HStack { QsBackButton(title: "Settings"); Spacer() }
                 ScreenTitle(title: "App theme")
                 sectionLabel("Free")
                 LazyVGrid(columns: columns, spacing: Space.s12) { card(.peachSage) }
@@ -471,9 +470,8 @@ struct AppIconView: View {
     @Environment(PlusAccess.self) private var plus
 
     var body: some View {
-        ScrollView {
+        PinnedBackScroll(backTitle: "Settings") {
             VStack(alignment: .leading, spacing: Space.s16) {
-                HStack { QsBackButton(title: "Settings"); Spacer() }
                 ScreenTitle(title: "App icon")
                 Text("Choose how Quiet Reading looks on your Home Screen.")
                     .font(.subheadline).foregroundStyle(theme.palette.ink2)
@@ -535,9 +533,8 @@ struct SourcesView: View {
     @Environment(\.theme) private var theme
 
     var body: some View {
-        ScrollView {
+        PinnedBackScroll(backTitle: "Settings") {
             VStack(alignment: .leading, spacing: Space.s16) {
-                HStack { QsBackButton(title: "Settings"); Spacer() }
                 ScreenTitle(title: "Sources")
                 if lastImport > 0 {
                     QsListCard {

@@ -10,9 +10,8 @@ struct PatternsView: View {
     @State private var range: ReadingStats.Range = .year
 
     var body: some View {
-        ScrollView {
+        PinnedBackScroll(backTitle: "Stats") {
             VStack(alignment: .leading, spacing: Space.s16) {
-                HStack { QsBackButton(title: "Stats"); Spacer() }
                 ScreenTitle(title: "Patterns")
                 QsSegmented(options: [(ReadingStats.Range.month, String(localized: "Month")),
                                       (.year, String(localized: "Year")),
