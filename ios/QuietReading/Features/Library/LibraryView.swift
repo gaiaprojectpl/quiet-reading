@@ -55,7 +55,7 @@ struct LibraryView: View {
     private var shelves: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Space.s16) {
-                ScreenHeader(title: "Library") { topIcons }
+                ScreenHeader(title: "Library") { topIcons; QsProfileButton() }
                 if searching { searchField }
                 shelfChips
                 content
@@ -212,7 +212,7 @@ struct LibraryView: View {
     // MARK: Empty library (no books at all) – Flow 10 › Library · empty
 
     private var emptyLibrary: some View {
-        ScreenScaffold(title: "Library") {
+        ScreenScaffold(title: "Library", showsProfile: true) {
             EmptyStateView(
                 icon: "qs.library",
                 title: "Your library starts here",

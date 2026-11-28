@@ -25,12 +25,23 @@ struct QsListRow: View {
         }
     }
 
+    /// "qs.logo" draws the mini app icon (Figma › Row · App icon): the q on an accent tile, as big as the other glyphs.
+    @ViewBuilder private var iconView: some View {
+        if icon == "qs.logo" {
+            Image("qs.logo").resizable()
+                .foregroundStyle(theme.palette.bg)
+                .frame(width: glyph, height: glyph)
+                .background(theme.palette.accent, in: RoundedRectangle(cornerRadius: glyph / 4, style: .continuous))
+        } else {
+            Image(icon).resizable()
+                .frame(width: glyph, height: glyph)
+                .foregroundStyle(theme.palette.accentInk)
+        }
+    }
+
     private func row(chevron: Bool) -> some View {
             HStack(spacing: Space.s16) {
-                Image(icon)
-                    .resizable()
-                    .frame(width: glyph, height: glyph)
-                    .foregroundStyle(theme.palette.accentInk)
+                iconView
                     .frame(width: tile, height: tile)
                     .background(theme.palette.soft2, in: RoundedRectangle(cornerRadius: theme.radii.field, style: .continuous))
                     .accessibilityHidden(true)

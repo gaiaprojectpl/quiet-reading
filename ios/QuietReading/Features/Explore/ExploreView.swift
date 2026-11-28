@@ -41,7 +41,10 @@ struct ExploreView: View {
         NavigationStack(path: $path) {
             ScrollView {
                 VStack(alignment: .leading, spacing: Space.s16) {
-                    ScreenTitle(title: "Explore")
+                    HStack(spacing: Space.s8) {
+                        ScreenTitle(title: "Explore")
+                        QsProfileButton()
+                    }
                     searchRow
                     chipRow
                     if isBrowsing { browse } else { resultsList }

@@ -48,6 +48,8 @@ struct ScreenScaffold<Content: View, Actions: View>: View {
     @ViewBuilder var content: Content
     @ViewBuilder var actions: Actions
     var hasActions = true
+    /// Root tab screens show the Profile button at the end of the title row (Figma 273:1393).
+    var showsProfile = false
     @Environment(\.theme) private var theme
     @Environment(\.duoLayout) private var duo
 
@@ -73,8 +75,11 @@ struct ScreenScaffold<Content: View, Actions: View>: View {
         Group {
             ScrollView {
                 VStack(spacing: Space.s16) {
-                    ScreenTitle(title: title)
-                        .padding(.bottom, Space.s8)
+                    HStack(spacing: Space.s8) {
+                        ScreenTitle(title: title)
+                        if showsProfile { QsProfileButton() }
+                    }
+                    .padding(.bottom, Space.s8)
                     content
                     if hasActions && !pinActions {
                         VStack(spacing: Space.s12) { actions }
@@ -101,7 +106,13 @@ struct ScreenScaffold<Content: View, Actions: View>: View {
 }
 
 extension ScreenScaffold where Actions == EmptyView {
-    init(title: LocalizedStringKey, @ViewBuilder content: () -> Content) {
-        self.init(title: title, content: content, actions: { EmptyView() }, hasActions: false)
+    init(title: LocalizedStringKey, showsProfile: Bool = false, @ViewBuilder content: () -> Content) {
+        self.init(title: title, content: content, actions: { EmptyView() }, hasActions: false, showsProfile: showsProfile)
+    }
+}
+
+extension ScreenScaffold {
+    init(title: LocalizedStringKey, showsProfile: Bool, @ViewBuilder content: () -> Content, @ViewBuilder actions: () -> Actions) {
+        self.init(title: title, content: content, actions: actions, hasActions: true, showsProfile: showsProfile)
     }
 }

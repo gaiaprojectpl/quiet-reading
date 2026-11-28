@@ -24,7 +24,9 @@ struct QsChip: View {
                     .foregroundStyle(theme.palette.ink)
             }
             // Compact pill (about 32 pt); the tap area below stays 44 pt.
-            .padding(.horizontal, Space.s12)
+            // Without an icon, the room the check needs is split left and right, so choosing a chip
+            // never changes its width and rows of chips don't jump.
+            .padding(.horizontal, icon == nil && !isSelected ? Space.s12 + (Size.iconS + Space.s6) / 2 : Space.s12)
             .padding(.vertical, Space.s6)
             .frame(minHeight: Size.buttonSmall - Space.s8)
             .background(isSelected ? theme.palette.soft2 : .clear, in: Capsule())
@@ -58,7 +60,8 @@ struct FlowLayout: Layout {
             rowHeight = max(rowHeight, size.height)
             width = max(width, x - spacing)
         }
-        return CGSize(width: min(width, maxWidth), height: y + rowHeight)
+        // Take the full offered width, so placement wraps exactly where measuring did.
+        return CGSize(width: maxWidth.isFinite ? maxWidth : width, height: y + rowHeight)
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {

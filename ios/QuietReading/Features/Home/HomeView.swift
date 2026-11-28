@@ -6,8 +6,6 @@ struct HomeView: View {
     var onSeeAll: () -> Void = {}
     var onAddBook: () -> Void = {}
     var onImport: () -> Void = {}
-    /// Profile photo, top right: opens Settings (Flow 12 · Explore moved Settings out of the tab bar).
-    var onSettings: () -> Void = {}
     @Environment(\.theme) private var theme
     @Query(sort: \Book.lastUpdated, order: .reverse) private var books: [Book]
     @State private var updating: Book?
@@ -38,7 +36,7 @@ struct HomeView: View {
 
     var body: some View {
         if books.isEmpty {
-            ScreenScaffold(title: "Home") {
+            ScreenScaffold(title: "Home", showsProfile: true) {
                 EmptyStateView(
                     icon: "qs.book",
                     title: "Your shelf is ready",
@@ -49,9 +47,6 @@ struct HomeView: View {
                     .buttonStyle(QsButtonStyle(priority: .primary))
                 Button("Import from Goodreads or StoryGraph", action: onImport)
                     .buttonStyle(QsButtonStyle(priority: .text))
-            }
-            .overlay(alignment: .topTrailing) {
-                ProfileButton(action: onSettings).padding(.trailing, Space.s20).padding(.top, Space.s16 + duo.topSpacing)
             }
         } else {
             NavigationStack(path: $path) {
@@ -172,7 +167,7 @@ struct HomeView: View {
                             .foregroundStyle(theme.palette.ink)
                             .accessibilityAddTraits(.isHeader)
                         Spacer()
-                        ProfileButton(action: onSettings)
+                        QsProfileButton()
                     }
                     currentSection
                     if !alsoReading.isEmpty { alsoReadingSection }
@@ -193,18 +188,18 @@ struct HomeView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: Space.s20) {
-            HStack(alignment: .center) {
-                Text(Date.now.formatted(.dateTime.weekday(.wide).day().month(.wide)).uppercased())
-                    .font(.caption.weight(.semibold))
-                    .tracking(0.72)
-                    .foregroundStyle(theme.palette.ink2)
-                Spacer()
-                ProfileButton(action: onSettings)
+            Text(Date.now.formatted(.dateTime.weekday(.wide).day().month(.wide)).uppercased())
+                .font(.caption.weight(.semibold))
+                .tracking(0.72)
+                .foregroundStyle(theme.palette.ink2)
+            HStack(alignment: .center, spacing: Space.s8) {
+                Text("Reading now")
+                    .font(theme.headline(32, relativeTo: .largeTitle))
+                    .foregroundStyle(theme.palette.ink)
+                    .accessibilityAddTraits(.isHeader)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                QsProfileButton()
             }
-            Text("Reading now")
-                .font(theme.headline(32, relativeTo: .largeTitle))
-                .foregroundStyle(theme.palette.ink)
-                .accessibilityAddTraits(.isHeader)
         }
     }
 
@@ -498,32 +493,3 @@ private struct BookActions: View {
         .modelContainer(for: Book.self, inMemory: true)
 }
 
-/// The reader's photo (or initial) at the top of Home: opens Settings and profile.
-struct ProfileButton: View {
-    let action: () -> Void
-    @AppStorage(ProfileKeys.name) private var name = ""
-    @State private var photo: UIImage?
-    @Environment(\.theme) private var theme
-    @ScaledMetric(relativeTo: .body) private var size = Space.s40
-
-    var body: some View {
-        Button(action: action) {
-            Group {
-                if photo == nil && name.isEmpty {
-                    // No photo or name yet: a quiet person icon, not a question mark.
-                    Image("qs.user").resizable().frame(width: Size.iconL, height: Size.iconL)
-                        .foregroundStyle(theme.palette.accentInk)
-                        .frame(width: size, height: size)
-                        .background(theme.palette.soft, in: Circle())
-                } else {
-                    AvatarView(image: photo, name: name, size: size)
-                }
-            }
-            .frame(minWidth: Size.touchIos, minHeight: Size.touchIos)
-                .contentShape(Circle())
-        }
-        .buttonStyle(QsPressStyle())
-        .accessibilityLabel("Settings and profile")
-        .onAppear { photo = Avatar.load() }
-    }
-}

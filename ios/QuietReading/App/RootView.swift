@@ -89,8 +89,7 @@ struct RootView: View {
             if let url = note.object as? URL { router.handle(url) }
         }
         .onChange(of: scenePhase, initial: true) { _, phase in if phase == .active { router.checkPendingUpdate() } }
-        // Settings (opened from Home) shows the paywall itself; one full-screen cover at a time.
-        .fullScreenCover(isPresented: Binding(get: { plus.showPaywall && !router.showSettings }, set: { plus.showPaywall = $0 })) { PlusView().duoCover() }
+.fullScreenCover(isPresented: Bindable(plus).showPaywall) { PlusView().duoCover() }
         .environment(importSession)
         .environment(router)
         .environment(companion)
@@ -110,6 +109,7 @@ struct RootView: View {
 }
 
 private struct MainTabs: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.duoLayout) private var duo
     @Environment(\.theme) private var theme
     @Environment(PlusAccess.self) private var plus
@@ -126,15 +126,23 @@ private struct MainTabs: View {
 
     var body: some View {
         Group {
+            if router.showSettings {
+                // Flow 4 · Profile & Settings: opens over the current tab, tab bar stays; "‹ Home" (or the tab) goes back.
+                SettingsView(onImport: { showImport = true }, onClose: { router.showSettings = false }, backTitle: tab.title)
+                    .transition(reduceMotion ? .opacity : .move(edge: .trailing))
+            } else {
             switch tab {
-            case .home: HomeView(onSeeAll: { libraryShelf = .toRead; tab = .library }, onAddBook: { showAdd = true }, onImport: { showImport = true },
-                                 onSettings: { router.showSettings = true })
+            case .home: HomeView(onSeeAll: { libraryShelf = .toRead; tab = .library }, onAddBook: { showAdd = true }, onImport: { showImport = true })
             case .library: LibraryView(onAddBook: { showAdd = true }, onImport: { showImport = true }, requestedShelf: $libraryShelf)
             case .add: EmptyView() // Add is a sheet, never a tab
             case .stats: StatsView(onAddBook: { showAdd = true })
             case .explore: ExploreView()
             }
+            }
         }
+        .animation(reduceMotion ? nil : .easeOut(duration: Motion.base), value: router.showSettings)
+        // Tapping a tab closes Profile & Settings.
+        .onChange(of: tab) { router.showSettings = false }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if plus.previewTheme != nil && !plus.isUnlocked {
@@ -191,14 +199,6 @@ private struct MainTabs: View {
             AddBookView(onChoose: { pendingAdd = $0 })
         }
         .fullScreenCover(isPresented: $showImport) { ImportLibraryView().duoCover() }
-        .fullScreenCover(isPresented: Bindable(router).showSettings) {
-            SettingsView(onImport: {
-                router.showSettings = false
-                Task { try? await Task.sleep(for: .milliseconds(450)); showImport = true }
-            }, onClose: { router.showSettings = false })
-                .modifier(QsNotificationHost())
-                .duoCover()
-        }
         .fullScreenCover(item: $addFlow) { item in
             AddFlow(mode: item.mode)
                 .modifier(QsNotificationHost())
@@ -212,6 +212,7 @@ private struct MainTabs: View {
             case "stats": tab = .stats
             case "settings": router.showSettings = true
             case "explore": tab = .explore
+            case "finish": router.finishCurrent = true
             case "add": showAdd = true
             case "addtype": addFlow = AddFlowItem(mode: .type)
             case "addcover": addFlow = AddFlowItem(mode: .cover)

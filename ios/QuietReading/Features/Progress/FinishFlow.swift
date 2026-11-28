@@ -35,11 +35,6 @@ struct FinishedView: View {
 
     @State private var stars: Double?
     @State private var moods: Set<String> = []
-    @State private var custom: [String] = []
-    @State private var addingMood = false
-    @State private var newMood = ""
-
-    private static let suggested = ["Cozy", "Slow", "Hopeful", "Sad", "Re-read"]
 
     var body: some View {
         Group {
@@ -68,17 +63,6 @@ struct FinishedView: View {
         .onAppear {
             stars = book.stars
             moods = Set(book.moods)
-            custom = book.moods.filter { !Self.suggested.contains($0) }
-        }
-        .alert("Add a feeling", isPresented: $addingMood) {
-            TextField("Feeling", text: $newMood)
-            Button("Add") {
-                let mood = newMood.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !mood.isEmpty, !custom.contains(mood), !Self.suggested.contains(mood) { custom.append(mood) }
-                if !mood.isEmpty { moods.insert(mood) }
-                newMood = ""
-            }
-            Button("Cancel", role: .cancel) { newMood = "" }
         }
     }
 
@@ -94,33 +78,12 @@ struct FinishedView: View {
                 .foregroundStyle(theme.palette.ink)
                 .multilineTextAlignment(.center)
                 .accessibilityAddTraits(.isHeader)
-            QsStarRating(value: $stars)
-            Text(stars.map { "\($0.formatted()) · " + String(localized: "tap a star twice for a half") }
-                 ?? String(localized: "Tap a star twice for a half"))
-                .font(.footnote)
-                .foregroundStyle(theme.palette.ink2)
-                .accessibilityHidden(true)
         }
         .frame(maxWidth: .infinity)
     }
 
     private var feelings: some View {
-        VStack(alignment: .leading, spacing: Space.s16) {
-            Text("How did it feel?")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(theme.palette.ink)
-                .accessibilityAddTraits(.isHeader)
-            FlowLayout(spacing: Space.s8) {
-                ForEach(Self.suggested + custom, id: \.self) { mood in
-                    QsChip(title: String(localized: String.LocalizationValue(mood)), isSelected: moods.contains(mood)) {
-                        if moods.contains(mood) { moods.remove(mood) } else { moods.insert(mood) }
-                    }
-                }
-                QsChip(title: String(localized: "+ Add")) { addingMood = true }
-                    .accessibilityLabel("Add a feeling")
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        FeelingsEditor(stars: $stars, moods: $moods, extra: book.moods)
     }
 
     private var actions: some View {
@@ -149,7 +112,7 @@ struct FinishedView: View {
         book.lastUpdated = .now
         if saveFeelings {
             book.stars = stars
-            book.moods = Self.suggested.filter(moods.contains) + custom.filter(moods.contains)
+            book.moods = (Feelings.suggested + Feelings.custom + book.moods).filter(moods.contains).uniqued()
         }
         try? context.save()
         onDone(!wantToRead.filter { $0.persistentModelID != book.persistentModelID }.isEmpty)
@@ -236,4 +199,9 @@ struct WhatNextView: View {
         try? context.save()
         onDone()
     }
+}
+
+extension Array where Element == String {
+    /// Keeps the first of each value, in order.
+    func uniqued() -> [String] { var seen = Set<String>(); return filter { seen.insert($0).inserted } }
 }

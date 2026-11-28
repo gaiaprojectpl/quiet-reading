@@ -19,6 +19,7 @@ struct BookDetailView: View {
     @State private var finishing: Book?
     @State private var finishAfterSheet: Book?
     @State private var showMove = false
+    @State private var finishAfterMove = false
     @State private var removeAfterSheet = false
     @State private var confirmRemove = false
     @State private var editingMoods = false
@@ -101,8 +102,10 @@ struct BookDetailView: View {
         .fullScreenCover(item: $finishing) { FinishFlow(book: $0).duoCover() }
         .sheet(isPresented: $showMove, onDismiss: {
             if removeAfterSheet { removeAfterSheet = false; confirmRemove = true }
+            // Moving to Finished opens the Finished moment (rating, feelings), same as the Finished button.
+            if finishAfterMove { finishAfterMove = false; finishing = book }
         }) {
-            MoveToShelfSheet(book: book, onRemove: { removeAfterSheet = true })
+            MoveToShelfSheet(book: book, onRemove: { removeAfterSheet = true }, onFinish: { finishAfterMove = true })
         }
         .sheet(isPresented: $editingMoods) { MoodsSheet(book: book) }
         .sheet(isPresented: $addingQuote, onDismiss: {
@@ -483,6 +486,8 @@ struct BookDetailView: View {
 struct MoveToShelfSheet: View {
     let book: Book
     let onRemove: () -> Void
+    /// "Finished" chosen: the caller opens the Finished moment instead of moving silently.
+    var onFinish: (() -> Void)? = nil
     @Environment(\.theme) private var theme
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
@@ -563,6 +568,7 @@ struct MoveToShelfSheet: View {
 
     private func choose(_ status: ReadingStatus) {
         guard status != book.status else { dismiss(); return }
+        if status == .read, let onFinish { onFinish(); dismiss(); return }
         let undo = book.move(to: status)
         try? context.save()
         dismiss()
@@ -584,44 +590,39 @@ private struct MoodsSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
     @State private var moods: Set<String> = []
-
-    private var options: [String] {
-        let base = ["Cozy", "Slow", "Hopeful", "Sad", "Re-read", "Dark", "Funny"]
-        return base + book.moods.filter { !base.contains($0) }
-    }
+    @State private var stars: Double?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Space.s16) {
-            Text("How did it feel?")
-                .font(theme.headline(22, relativeTo: .title2))
-                .foregroundStyle(theme.palette.ink)
-                .accessibilityAddTraits(.isHeader)
-            FlowLayout(spacing: Space.s8) {
-                ForEach(options, id: \.self) { mood in
-                    QsChip(title: String(localized: String.LocalizationValue(mood)), isSelected: moods.contains(mood)) {
-                        if moods.contains(mood) { moods.remove(mood) } else { moods.insert(mood) }
-                    }
-                }
+        ScrollView {
+            VStack(alignment: .leading, spacing: Space.s20) {
+                Text(book.title)
+                    .font(theme.headline(22, relativeTo: .title2))
+                    .foregroundStyle(theme.palette.ink)
+                    .accessibilityAddTraits(.isHeader)
+                FeelingsEditor(stars: $stars, moods: $moods, extra: book.moods, showsRating: book.status == .read)
             }
-            Spacer(minLength: 0)
+            .padding(.horizontal, Space.s20)
+            .padding(.top, Space.s24)
+            .padding(.bottom, Space.s16)
         }
-        .padding(.horizontal, Space.s20)
-        .padding(.top, Space.s24)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             Button("Save") {
-                book.moods = options.filter(moods.contains)
+                book.moods = (Feelings.suggested + Feelings.custom + book.moods).filter(moods.contains).uniqued()
+                if book.status == .read { book.stars = stars; book.rating = stars.map { Int($0.rounded()) } }
                 try? context.save()
                 dismiss()
             }
             .buttonStyle(QsButtonStyle(priority: .primary))
             .padding(.horizontal, Space.s20)
+            .padding(.top, Space.s12)
             .padding(.bottom, QsLayout.actionsAboveBottomLine)
+            .background(theme.palette.surface)
         }
         .background(theme.palette.surface.ignoresSafeArea())
-        .presentationDetents([.medium])
+        .presentationDetents([.large])
         .presentationDragIndicator(.visible)
         .presentationCornerRadius(theme.radii.sheet)
-        .onAppear { moods = Set(book.moods) }
+        .onAppear { moods = Set(book.moods); stars = book.stars }
     }
 }
 

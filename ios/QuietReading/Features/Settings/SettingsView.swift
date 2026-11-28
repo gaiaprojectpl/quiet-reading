@@ -7,6 +7,8 @@ struct SettingsView: View {
     var onImport: () -> Void = {}
     /// Set when Settings is opened from the profile photo on Home: shows "‹ Home" and closes.
     var onClose: (() -> Void)? = nil
+    /// The tab Profile & Settings was opened from ("Home", "Library"…).
+    var backTitle: LocalizedStringKey = "Home"
 
     @Environment(\.theme) private var theme
     @Environment(\.modelContext) private var context
@@ -31,6 +33,8 @@ struct SettingsView: View {
     @State private var notificationsOff = false
     @AppStorage(ProfileKeys.monthlyRecap) private var monthlyRecap = false
     @State private var avatar: UIImage?
+    @State private var exportFiles: ExportFiles?
+    struct ExportFiles: Identifiable { let id = UUID(); let urls: [URL] }
 
     enum Page: Hashable { case profile, theme, icon, sources, companion }
 
@@ -45,10 +49,7 @@ struct SettingsView: View {
         NavigationStack(path: $path) {
             ScrollView {
                 VStack(alignment: .leading, spacing: Space.s16) {
-                    if let onClose {
-                        QsBackButton(title: "Home", action: onClose).padding(.leading, -Space.s8)
-                    }
-                    ScreenTitle(title: "Settings")
+                    ScreenTitle(title: "Profile & Settings")
                     profileCard
                     section("Appearance") {
                         QsListRow(icon: "qs.palette", title: "App theme", value: chosenTheme.displayName) { path.append(.theme) }
@@ -70,7 +71,8 @@ struct SettingsView: View {
                         }
                     }
                     section("Your data") {
-                        ShareLink(items: DataExport.files(books: books)) {
+                        // Files are written once, on tap (rebuilding them on every redraw made the share sheet jump).
+                        Button { exportFiles = ExportFiles(urls: DataExport.files(books: books)) } label: {
                             QsListRowLabel(icon: "qs.file", title: "Export my data", subtitle: "Books and quotes as CSV files")
                         }
                         .buttonStyle(.plain)
@@ -87,6 +89,14 @@ struct SettingsView: View {
                 .padding(.top, Space.s16)
                 .padding(.bottom, Space.s40)
             }
+            // The way back stays put while the page scrolls (like iOS Settings).
+            .safeAreaInset(edge: .top, spacing: 0) {
+                if let onClose {
+                    HStack { QsBackButton(title: backTitle, action: onClose); Spacer() }
+                        .padding(.horizontal, Space.s12)
+                        .background(theme.palette.bg)
+                }
+            }
             .background(theme.palette.bg.ignoresSafeArea())
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: Page.self) { page in
@@ -98,8 +108,8 @@ struct SettingsView: View {
                 case .companion: CompanionSettingsView()
                 }
             }
-            .fullScreenCover(isPresented: Binding(get: { onClose != nil && plus.showPaywall }, set: { plus.showPaywall = $0 })) {
-                PlusView().duoCover()
+            .sheet(item: $exportFiles) { files in
+                ActivityView(items: files.urls).presentationDetents([.medium, .large]).ignoresSafeArea()
             }
             .sheet(isPresented: $editingGoal) { GoalSheet(goal: $goal, finishedThisYear: finishedThisYear) }
             .sheet(isPresented: $editingReminder) {
@@ -139,34 +149,41 @@ struct SettingsView: View {
 
     // MARK: Parts
 
+    /// Figma 273:1394 · Profile summary: photo, name, handle, one line of reading facts, Edit profile.
     private var profileCard: some View {
-        Button { path.append(.profile) } label: {
-            HStack(spacing: Space.s16) {
-                AvatarView(image: avatar, name: name, size: 56)
-                VStack(alignment: .leading, spacing: Space.s2) {
-                    Text(name.isEmpty ? String(localized: "Add your name") : name)
-                        .font(theme.headline(22, relativeTo: .title2))
-                        .foregroundStyle(theme.palette.ink)
-                    if !handle.isEmpty {
-                        Text("@\(handle)").font(.footnote).foregroundStyle(theme.palette.ink2)
-                    }
-                    Text(String(localized: "\(finishedThisYear) books in \(String(Calendar.current.component(.year, from: .now)))"))
-                        .font(.footnote).foregroundStyle(theme.palette.ink2)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                Image("qs.chevron").resizable().frame(width: Size.iconS + 2, height: Size.iconS + 2)
-                    .foregroundStyle(theme.palette.ink2).accessibilityHidden(true)
+        VStack(spacing: Space.s4) {
+            Button { path.append(.profile) } label: {
+                AvatarView(image: avatar, name: name, size: 88, initials: true)
             }
-            .padding(Space.s16)
-            .background(theme.palette.surface, in: RoundedRectangle(cornerRadius: theme.radii.card, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: theme.radii.card, style: .continuous).strokeBorder(theme.palette.line, lineWidth: Size.stroke))
-            .contentShape(Rectangle())
+            .buttonStyle(QsPressStyle())
+            .accessibilityLabel("Edit profile photo")
+            .padding(.bottom, Space.s8)
+            Text(name.isEmpty ? String(localized: "Add your name") : name)
+                .font(theme.headline(26, relativeTo: .title))
+                .foregroundStyle(theme.palette.ink)
+                .multilineTextAlignment(.center)
+            if !handle.isEmpty {
+                Text("@\(handle)").font(.subheadline).foregroundStyle(theme.palette.ink2)
+            }
+            Text(factsLine).font(.footnote).foregroundStyle(theme.palette.ink2).multilineTextAlignment(.center)
+            Button("Edit profile") { path.append(.profile) }
+                .buttonStyle(QsButtonStyle(priority: .outline, size: .small))
+                .fixedSize()
+                .padding(.top, Space.s8)
         }
-        .buttonStyle(QsPressStyle())
-        .accessibilityHint("Edit profile")
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, Space.s8)
     }
 
-    /// Flow 8 › Monthly recap: off by default; asks for notification permission when turned on.
+    /// "24 books in 2026 · 6 quotes saved"
+    private var factsLine: String {
+        let year = String(Calendar.current.component(.year, from: .now))
+        let quotes = books.reduce(0) { $0 + $1.quotes.count }
+        var parts = [finishedThisYear == 1 ? String(localized: "1 book in \(year)") : String(localized: "\(finishedThisYear) books in \(year)")]
+        if quotes > 0 { parts.append(quotes == 1 ? String(localized: "1 quote saved") : String(localized: "\(quotes) quotes saved")) }
+        return parts.joined(separator: " · ")
+    }
+
     private var recapRow: some View {
         Toggle(isOn: $monthlyRecap) {
           HStack(spacing: Space.s16) {
@@ -301,6 +318,8 @@ struct AvatarView: View {
     let image: UIImage?
     let name: String
     let size: CGFloat
+    /// Two initials ("OK" for Ola Kowalska) instead of one.
+    var initials = false
     @Environment(\.theme) private var theme
 
     var body: some View {
@@ -308,16 +327,30 @@ struct AvatarView: View {
             if let image {
                 Image(uiImage: image).resizable().scaledToFill()
             } else {
-                Text(name.first.map { String($0).uppercased() } ?? "")
+                if letters.isEmpty {
+                    Image("qs.user").resizable().frame(width: size * 0.45, height: size * 0.45)
+                        .foregroundStyle(theme.palette.accentInk)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(theme.palette.soft)
+                } else {
+                Text(letters)
                     .font(theme.headline(size * 0.42, relativeTo: .title))
                     .foregroundStyle(theme.palette.accentInk)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(theme.palette.soft)
+                }
             }
         }
         .frame(width: size, height: size)
         .clipShape(Circle())
         .accessibilityHidden(true)
+    }
+
+    private var letters: String {
+        let words = name.split(separator: " ").filter { $0.first?.isLetter == true }
+        guard let first = words.first?.first else { return "" }
+        guard initials, words.count > 1, let last = words.last?.first else { return String(first).uppercased() }
+        return (String(first) + String(last)).uppercased()
     }
 }
 
@@ -567,4 +600,13 @@ private struct ReminderSheet: View {
             time = Calendar.current.date(from: c) ?? .now
         }
     }
+}
+
+/// The system share sheet with a fixed list of items (so it never re-presents while open).
+struct ActivityView: UIViewControllerRepresentable {
+    let items: [Any]
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
 }

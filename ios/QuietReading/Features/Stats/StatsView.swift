@@ -46,6 +46,7 @@ struct StatsView: View {
                 VStack(alignment: .leading, spacing: Space.s16) {
                     ScreenHeader(title: "Stats") {
                         if stats.hasAnyData { ShareImageButton(image: shareImage, caption: shareTitle) }
+                        QsProfileButton()
                     }
                     if stats.hasAnyData { content } else { empty }
                 }
