@@ -20,11 +20,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.navigation.compose.NavHost
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import app.quietreading.data.Keys
 import app.quietreading.data.LocalApp
+import app.quietreading.data.current
 import app.quietreading.data.rememberPref
 import app.quietreading.designsystem.QsMotion
 import app.quietreading.designsystem.QsTheme
@@ -49,7 +53,7 @@ import app.quietreading.feature.stats.statsGraph
 
 /** Resolves the theme, shows Flow 1 on first launch, then the one navigation used everywhere. */
 @Composable
-fun QuietReadingApp() {
+fun QuietReadingApp(link: String? = null, onLinkHandled: () -> Unit = {}) {
     val app = LocalApp.current
     val (themeRaw, _) = rememberPref(Keys.theme, ThemeId.PeachSage.name)
     val (forceHC, _) = rememberPref(Keys.forceHighContrast, false)
@@ -73,21 +77,23 @@ fun QuietReadingApp() {
                         if (firstRun) {
                             OnboardingFlow(onFinish = { setOnboardingDone(true); firstRun = false })
                         } else {
-                            MainTabs()
+                            MainTabs(link, onLinkHandled)
                         }
                     }
                 }
             }
         }
     }
-    // Covers fill in by themselves.
+    // Covers fill in by themselves: at launch and whenever books arrive (import, add).
     LaunchedEffect(Unit) {
-        app.covers.backfill(app.library, app.library.books.first())
+        app.library.books.map { b -> b.count() }.distinctUntilChanged().collectLatest {
+            app.covers.backfill(app.library, app.library.books.first())
+        }
     }
 }
 
 @Composable
-private fun MainTabs() {
+private fun MainTabs(link: String?, onLinkHandled: () -> Unit) {
     val controller = rememberNavController()
     var showAdd by rememberSaveable { mutableStateOf(false) }
     val nav = remember(controller) { AppNav(controller) { showAdd = true } }
@@ -120,6 +126,14 @@ private fun MainTabs() {
             bookGraph(nav)
             quotesGraph(nav)
         }
+    }
+
+    val app = LocalApp.current
+    LaunchedEffect(link) {
+        val url = link ?: return@LaunchedEffect
+        onLinkHandled()
+        val current = app.library.books.first().current
+        DeepLinks.open(url, nav, current?.id)
     }
 
     if (wide && showNav) {

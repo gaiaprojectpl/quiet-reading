@@ -32,12 +32,25 @@ class Covers(context: Context) {
 
     fun delete(name: String) { File(dir, name).delete() }
 
-    /** Covers fill in by themselves: books with an ISBN and no cover yet (20 at a time). */
+    /**
+     * Covers fill in by themselves (20 at a time): by ISBN, otherwise the best title + author match
+     * (Goodreads exports often have no ISBN).
+     */
     suspend fun backfill(library: Library, books: List<Book>) {
-        for (book in books.filter { it.coverFile == null && it.isbn != null }.take(20)) {
-            val bytes = BookSearch.coverBytes(book.isbn) ?: continue
+        for (book in books.filter { it.coverFile == null }.take(20)) {
+            val bytes = BookSearch.coverBytes(book.isbn) ?: titleCover(book) ?: continue
             val name = save(bytes) ?: continue
             library.dao.book(book.id)?.let { library.dao.update(it.copy(coverFile = name)) }
         }
+    }
+
+    private suspend fun titleCover(book: Book): ByteArray? {
+        val key = { s: String -> s.lowercase().filter { it.isLetterOrDigit() } }
+        val matches = BookSearch.search("${book.title} ${book.author}").filter {
+            key(it.title).startsWith(key(book.title).take(12)) && it.coverUrl != null
+        }
+        // English edition first (the app is English); other languages only as a last resort.
+        val match = matches.firstOrNull { it.detail == "English edition" } ?: matches.firstOrNull { it.detail == null } ?: return null
+        return BookSearch.download(match.coverUrl!!)
     }
 }

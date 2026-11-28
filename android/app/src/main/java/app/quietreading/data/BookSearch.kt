@@ -58,7 +58,8 @@ object BookSearch {
         fun score(c: BookCandidate): Double {
             val t = words(c.title)
             val a = words(c.author)
-            return (q intersect t).size * 2.0 + (q intersect a).size - (t - q).size
+            val english = if (c.detail == null || c.detail == "English edition") 1.5 else 0.0  // the app is English
+            return (q intersect t).size * 2.0 + (q intersect a).size - (t - q).size + english
         }
         return results.withIndex().sortedWith(compareByDescending<IndexedValue<BookCandidate>> { score(it.value) }.thenBy { it.index }).map { it.value }
     }
