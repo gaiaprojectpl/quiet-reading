@@ -17,6 +17,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.navigation.compose.NavHost
@@ -44,6 +45,9 @@ import app.quietreading.feature.add.AddSheet
 import app.quietreading.feature.add.addGraph
 import app.quietreading.feature.book.bookGraph
 import app.quietreading.feature.home.homeGraph
+import app.quietreading.feature.plus.plusGraph
+import app.quietreading.feature.companion.companionGraph
+import app.quietreading.feature.companion.CompanionButtonSlot
 import app.quietreading.feature.quotes.quotesGraph
 import app.quietreading.feature.library.libraryGraph
 import app.quietreading.feature.onboarding.OnboardingFlow
@@ -125,6 +129,8 @@ private fun MainTabs(link: String?, onLinkHandled: () -> Unit) {
             onboardingGraph(nav)
             bookGraph(nav)
             quotesGraph(nav)
+            plusGraph(nav)
+            companionGraph(nav)
         }
     }
 
@@ -138,12 +144,15 @@ private fun MainTabs(link: String?, onLinkHandled: () -> Unit) {
 
     if (wide && showNav) {
         Row(Modifier.fillMaxSize()) {
-            QsTabRail(tab, select, onAdd = { showAdd = true })
+            QsTabRail(tab, select, onAdd = { showAdd = true }, top = { CompanionButtonSlot(nav, inRail = true) })
             host(Modifier.weight(1f))
         }
     } else {
         Column(Modifier.fillMaxSize()) {
-            host(Modifier.weight(1f))
+            Box(Modifier.weight(1f)) {
+                host(Modifier.fillMaxSize())
+                if (showNav) CompanionButtonSlot(nav, Modifier.align(Alignment.BottomEnd))
+            }
             if (showNav) QsTabBar(tab, select, onAdd = { showAdd = true })
         }
     }
