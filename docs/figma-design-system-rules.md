@@ -22,6 +22,7 @@ Where things are on 🎇 Mockups (all in Peach & Sage, inside `32:27 Flows`). Ea
 | 9 Add a quote | `109:14210` | `109:14211` |
 | 10 Empty, loading & offline | `109:14241` | `109:14242` |
 | 11 Splash animation | `153:14821` | `153:15017` |
+| 12 Explore (find books you don't know yet) | `268:13166` | – |
 | Widget ideas | `109:14235` | `109:14236` |
 
 If a node isn't found, Kaja has probably moved it: run `get_metadata` on `32:27` (not on the whole page) to find the new ID, then update this table.
@@ -120,12 +121,13 @@ Variables: colours in "App themes" (`c/…`, one mode per theme) now alias "Pale
 | Button: Priority = Primary / Secondary (accent border, no fill) / Outline (neutral border) / Text / Destructive · Large 48 / Small 40 | `Button("…"){}.buttonStyle(QsButtonStyle(priority: .secondary, size: .small))` – `DesignSystem/Components/QsButtonStyle.swift` | `QsButton("…", onClick, kind = QsButtonKind.Primary)` – `designsystem/components/QsButton.kt` |
 | Empty state | `EmptyStateView(systemImage:title:message:)` | `EmptyState(icon, title, message)` |
 | Screen shell (bg, margins, serif large title) | `ScreenScaffold(title:) { … }` (20 pt sides; system nav bar hidden, title is `ScreenTitle`) | `Screen(title) { … }` (16 dp sides) |
-| Nav bar: Home · Library · Add · Stats · Settings | `QsTabBar` (custom, matches Figma: soft/soft2/tintStrong pills, Add = accent circle that opens the Add **sheet**, never a tab) used in `App/RootView.swift` | `MainActivity.kt` (`NavigationBar`) |
+| Nav bar: Home · Explore · Add · Library · Stats (Settings = profile photo on Home, since Flow 12 · Explore) | `QsTabBar` (custom, matches Figma: soft/soft2/tintStrong pills, Add = accent circle that opens the Add **sheet**, never a tab) used in `App/RootView.swift` | `MainActivity.kt` (`NavigationBar`) |
 | Book cover (2:3, cover radius, shadow, placeholder) | `BookCover(source: .data(book.coverData) / .asset("cover.…"), width:)` | – |
 | Progress bar (M 8 pt / S 4 pt) | `QsProgressBar(value:, size: .m / .s)` | – |
 | Back button (iOS: chevron + "Back", 44 pt) | `QsBackButton()`. Onboarding hides the system nav bar and shows this; the edge swipe still works | – |
 | Banner · info | `InfoBanner(message:)` | – |
 | Logo | `QsLogo()` | – |
+| Search field (65:9820, Clear when it has a value) | `QsSearchField(prompt:text:)` | – |
 
 Component architecture:
 - **iOS:** small SwiftUI `View`s / `ButtonStyle`s. They read `@Environment(\.theme)` and `@Environment(\.isEnabled)` themselves, so callers never pass colours. Variants are a nested `enum Kind`. Text parameters are `LocalizedStringKey`.

@@ -89,7 +89,8 @@ struct RootView: View {
             if let url = note.object as? URL { router.handle(url) }
         }
         .onChange(of: scenePhase, initial: true) { _, phase in if phase == .active { router.checkPendingUpdate() } }
-        .fullScreenCover(isPresented: Bindable(plus).showPaywall) { PlusView().duoCover() }
+        // Settings (opened from Home) shows the paywall itself; one full-screen cover at a time.
+        .fullScreenCover(isPresented: Binding(get: { plus.showPaywall && !router.showSettings }, set: { plus.showPaywall = $0 })) { PlusView().duoCover() }
         .environment(importSession)
         .environment(router)
         .environment(companion)
@@ -126,11 +127,12 @@ private struct MainTabs: View {
     var body: some View {
         Group {
             switch tab {
-            case .home: HomeView(onSeeAll: { libraryShelf = .toRead; tab = .library }, onAddBook: { showAdd = true }, onImport: { showImport = true })
+            case .home: HomeView(onSeeAll: { libraryShelf = .toRead; tab = .library }, onAddBook: { showAdd = true }, onImport: { showImport = true },
+                                 onSettings: { router.showSettings = true })
             case .library: LibraryView(onAddBook: { showAdd = true }, onImport: { showImport = true }, requestedShelf: $libraryShelf)
             case .add: EmptyView() // Add is a sheet, never a tab
             case .stats: StatsView(onAddBook: { showAdd = true })
-            case .settings: SettingsView(onImport: { showImport = true })
+            case .explore: ExploreView()
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -141,7 +143,7 @@ private struct MainTabs: View {
         }
         .animation(.easeOut(duration: Motion.base), value: plus.previewTheme)
         // Trying on a theme shows it where it matters most: Home.
-        .onChange(of: plus.previewTheme) { _, new in if new != nil { tab = .home } }
+        .onChange(of: plus.previewTheme) { _, new in if new != nil { router.showSettings = false; tab = .home } }
         // Widget taps land on Home (the book or its Update sheet), Add or Stats.
         .onChange(of: router.updateBookID) { _, id in if id != nil { tab = .home } }
         .onChange(of: router.openBookID) { _, id in if id != nil { tab = .home } }
@@ -152,7 +154,7 @@ private struct MainTabs: View {
         .onChange(of: router.updateCurrent) { _, on in if on { tab = .home } }
         .onChange(of: router.finishCurrent) { _, on in if on { tab = .home } }
         .onChange(of: router.openYear) { _, on in if on { tab = .stats } }
-        .modifier(Navigation(duo: duo, tab: $tab, onAdd: { showAdd = true }, showAI: !companion.isOpen))
+        .modifier(Navigation(duo: duo, tab: $tab, onAdd: { showAdd = true }, showAI: !companion.isOpen && !companion.buttonHidden))
         // Flow 12 · Reading companion: full screen on iPhone (and Duo closed / upright / tabletop),
         // the right-hand page when the Duo is open like a book.
         .fullScreenCover(isPresented: Binding(get: { companion.isOpen && duo.mode != .book },
@@ -189,6 +191,14 @@ private struct MainTabs: View {
             AddBookView(onChoose: { pendingAdd = $0 })
         }
         .fullScreenCover(isPresented: $showImport) { ImportLibraryView().duoCover() }
+        .fullScreenCover(isPresented: Bindable(router).showSettings) {
+            SettingsView(onImport: {
+                router.showSettings = false
+                Task { try? await Task.sleep(for: .milliseconds(450)); showImport = true }
+            }, onClose: { router.showSettings = false })
+                .modifier(QsNotificationHost())
+                .duoCover()
+        }
         .fullScreenCover(item: $addFlow) { item in
             AddFlow(mode: item.mode)
                 .modifier(QsNotificationHost())
@@ -199,7 +209,9 @@ private struct MainTabs: View {
         .task {
             switch UserDefaults.standard.string(forKey: "qsOpen") {
             case "library": tab = .library
-            case "settings", "stats": tab = UserDefaults.standard.string(forKey: "qsOpen") == "stats" ? .stats : .settings
+            case "stats": tab = .stats
+            case "settings": router.showSettings = true
+            case "explore": tab = .explore
             case "add": showAdd = true
             case "addtype": addFlow = AddFlowItem(mode: .type)
             case "addcover": addFlow = AddFlowItem(mode: .cover)

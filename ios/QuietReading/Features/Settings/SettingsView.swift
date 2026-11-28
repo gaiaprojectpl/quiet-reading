@@ -5,6 +5,8 @@ import PhotosUI
 /// Flow 4 · Settings & profile.
 struct SettingsView: View {
     var onImport: () -> Void = {}
+    /// Set when Settings is opened from the profile photo on Home: shows "‹ Home" and closes.
+    var onClose: (() -> Void)? = nil
 
     @Environment(\.theme) private var theme
     @Environment(\.modelContext) private var context
@@ -43,6 +45,9 @@ struct SettingsView: View {
         NavigationStack(path: $path) {
             ScrollView {
                 VStack(alignment: .leading, spacing: Space.s16) {
+                    if let onClose {
+                        QsBackButton(title: "Home", action: onClose).padding(.leading, -Space.s8)
+                    }
                     ScreenTitle(title: "Settings")
                     profileCard
                     section("Appearance") {
@@ -92,6 +97,9 @@ struct SettingsView: View {
                 case .sources: SourcesView(onImport: onImport)
                 case .companion: CompanionSettingsView()
                 }
+            }
+            .fullScreenCover(isPresented: Binding(get: { onClose != nil && plus.showPaywall }, set: { plus.showPaywall = $0 })) {
+                PlusView().duoCover()
             }
             .sheet(isPresented: $editingGoal) { GoalSheet(goal: $goal, finishedThisYear: finishedThisYear) }
             .sheet(isPresented: $editingReminder) {
@@ -161,10 +169,17 @@ struct SettingsView: View {
     /// Flow 8 › Monthly recap: off by default; asks for notification permission when turned on.
     private var recapRow: some View {
         Toggle(isOn: $monthlyRecap) {
+          HStack(spacing: Space.s16) {
+            Image("qs.calendar").resizable().frame(width: Size.iconM + 2, height: Size.iconM + 2)
+                .foregroundStyle(theme.palette.accentInk)
+                .frame(width: Space.s40, height: Space.s40)
+                .background(theme.palette.soft2, in: RoundedRectangle(cornerRadius: theme.radii.field, style: .continuous))
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: Space.s2) {
                 Text("Monthly recap").font(.body.weight(.medium)).foregroundStyle(theme.palette.ink)
                 Text("On the 1st, a short look back at your month").font(.footnote).foregroundStyle(theme.palette.ink2)
             }
+          }
         }
         .tint(theme.palette.accent)
         .padding(Space.s16)

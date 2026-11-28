@@ -117,6 +117,8 @@ final class WidgetRouter {
     var updateCurrent = false
     var finishCurrent = false
     var openYear = false
+    /// Settings, opened from the profile photo on Home (not a tab since Flow 12 · Explore).
+    var showSettings = false
     /// Duo open: a book tapped in Astrid's chat opens on the left page.
     var openBookInPlace: Book?
 

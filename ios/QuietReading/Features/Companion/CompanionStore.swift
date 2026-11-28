@@ -52,6 +52,8 @@ final class CompanionStore {
     var messages: [CompanionMessage] = []
     var phase: Phase = .idle
     var isOpen = false
+    /// Screens with buttons pinned to the bottom (Explore › book preview) hide the floating button.
+    var buttonHidden = false
     /// A question to ask as soon as the chat opens (Home nudge, starters from elsewhere).
     var pendingPrompt: String?
     private(set) var availability: Availability = .available

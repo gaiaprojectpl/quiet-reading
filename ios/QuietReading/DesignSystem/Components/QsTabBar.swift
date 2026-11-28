@@ -1,30 +1,31 @@
 import SwiftUI
 
 enum AppTab: Hashable, CaseIterable {
-    case home, library, add, stats, settings
+    case home, explore, add, library, stats
 
     var title: LocalizedStringKey {
         switch self {
         case .home: "Home"
-        case .library: "Library"
+        case .explore: "Explore"
         case .add: "Add"
+        case .library: "Library"
         case .stats: "Stats"
-        case .settings: "Settings"
         }
     }
 
     var icon: String {
         switch self {
         case .home: "qs.home"
-        case .library: "qs.library"
+        case .explore: "qs.compass"
         case .add: "qs.add"
+        case .library: "qs.library"
         case .stats: "qs.stats"
-        case .settings: "qs.settings"
         }
     }
 }
 
-/// 🧱 Components › Nav bar (Figma 47:216). One navigation everywhere: Home · Library · Add · Stats · Settings.
+/// 🧱 Components › Nav bar (Figma 47:951). One navigation everywhere: Home · Explore · Add · Library · Stats.
+/// Settings lives behind the profile photo on Home (Figma Flow 12 · Explore).
 /// Nav item states: Enabled, Pressed (soft2 pill), Active (soft pill + semibold label),
 /// Active pressed (tintStrong pill). Add = accent circle that opens the Add sheet – never active.
 /// Light haptic when switching. VoiceOver: "Library, tab, 2 of 5, selected".
