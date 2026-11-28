@@ -38,7 +38,9 @@ import app.quietreading.designsystem.components.QsTabBar
 import app.quietreading.designsystem.components.QsTabRail
 import app.quietreading.feature.add.AddSheet
 import app.quietreading.feature.add.addGraph
+import app.quietreading.feature.book.bookGraph
 import app.quietreading.feature.home.homeGraph
+import app.quietreading.feature.quotes.quotesGraph
 import app.quietreading.feature.library.libraryGraph
 import app.quietreading.feature.onboarding.OnboardingFlow
 import app.quietreading.feature.onboarding.onboardingGraph
@@ -115,6 +117,8 @@ private fun MainTabs() {
             statsGraph(nav)
             settingsGraph(nav)
             onboardingGraph(nav)
+            bookGraph(nav)
+            quotesGraph(nav)
         }
     }
 
