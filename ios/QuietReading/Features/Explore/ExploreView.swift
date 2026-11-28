@@ -275,7 +275,7 @@ struct ExploreView: View {
             }
             LazyVStack(spacing: 0) {
                 ForEach(results) { b in
-                    NavigationLink(value: b) { ResultRow(book: b, onShelf: shelfKeys.contains(ExploreAdder.key(title: b.title, author: b.author))) }
+                    NavigationLink(value: b) { ResultRow(book: b, shelfLabel: shelfLabel(b)) }
                         .buttonStyle(.plain)
                         .onAppear { if b.id == results.last?.id { Task { await loadMore() } } }
                 }
@@ -341,6 +341,13 @@ struct ExploreView: View {
     }
 
     private static let tile: CGFloat = Size.coverM + Space.s24
+
+    /// Search results can show books already on the shelf, marked with their shelf ("Read", "Reading now"…).
+    private func shelfLabel(_ b: ExploreBook) -> String? {
+        let key = ExploreAdder.key(title: b.title, author: b.author)
+        guard let mine = shelf.first(where: { ExploreAdder.key(title: $0.title, author: $0.author) == key }) else { return nil }
+        return mine.status == .read ? String(localized: "Read") : mine.status.bookLabel
+    }
 }
 
 // MARK: - Pieces
@@ -409,7 +416,7 @@ private struct CoverTile: View {
 
 private struct ResultRow: View {
     let book: ExploreBook
-    let onShelf: Bool
+    let shelfLabel: String?
     @Environment(\.theme) private var theme
 
     var body: some View {
@@ -418,8 +425,8 @@ private struct ResultRow: View {
             VStack(alignment: .leading, spacing: Space.s2) {
                 Text(book.title).font(theme.headline(17, relativeTo: .headline)).foregroundStyle(theme.palette.ink).lineLimit(2)
                 Text(book.detailLine).font(.footnote).foregroundStyle(theme.palette.ink2).lineLimit(2)
-                if onShelf {
-                    Text("On your shelf").font(.caption.weight(.medium)).foregroundStyle(theme.palette.accentInk)
+                if let shelfLabel {
+                    Text(shelfLabel).font(.caption.weight(.medium)).foregroundStyle(theme.palette.accentInk)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

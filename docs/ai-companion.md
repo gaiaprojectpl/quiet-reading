@@ -116,3 +116,12 @@ The new components are:
 - **Cloud cost model:** monthly cap or a small subscription?
 - **Memory between chats:** suggest keeping feedback and deleting chat text after 30 days.
 - **Spoiler-safe series recaps:** allow them or not?
+
+## iOS implementation of persona v0.3 (28 Nov 2026)
+- **Natural answers without the model** (`CompanionConversation`): greeting, who are you, what can you do, are you real, how do you know what I like, thanks, goodbye, goal facts (no advice), change my goal, should I read more, "I just finished X", "I gave up on X". No book cards, no stats unless asked.
+- **When books are suggested:** a vague request gets one question first; "yes" to an offer, an answer to her question, or an explicit request (planner `wantsBooks`) suggests. Book talk and moods only offer once (`offersBooks`); after a "no" she doesn't offer again in that chat.
+- **Eligibility:** excluded = Read, Reading now, Didn't finish, Not for me (title key; rereads only when asked). Want to read is allowed: max one, shown first, card "On your Want to read" + "Open book". Checked when retrieving and again before showing cards.
+- **Real books only:** model-named titles are verified against Google Books / Open Library; "short" is checked against real page counts; when fewer than two survive and the request names a genre, well-known catalogue books fill in (Open Library, 100+ ratings). Otherwise the honest "Shall I look a little wider?".
+- **Settings:** "Include my profile" (first name + About me), off by default.
+- **Evaluation:** `-qsAstridEval 70` = 10 tastes × 7 questions (identity, hello, vague request, short and cosy, year, should I read more, finished a book). Checks no cards where the persona says none, no unasked goal talk, no goal advice, one question max, no read books, voice rules. Last run: 70 answers, 0 rule problems.
+- **Still to do:** series order (next unread volume) and work-level matching across editions need Hardcover work IDs (backend); Figma "On Want to read" card state.

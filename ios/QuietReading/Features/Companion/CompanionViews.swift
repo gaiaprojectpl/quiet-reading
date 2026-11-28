@@ -295,9 +295,9 @@ struct CompanionChatView: View {
         let current = books.filter { $0.status == .reading }.max { $0.lastUpdated < $1.lastUpdated }
         let text: String
         if returning, let current {
-            text = String(localized: "Welcome back. How is *\(current.title)* treating you?")
+            text = String(localized: "Welcome back. How is *\(current.title)* going?")
         } else {
-            text = String(localized: "Hello, I’m Astrid, your reading companion. I’m an AI, and I can only see your **shelves, ratings and finish tags**. I’d love to help you find your next good story. Where shall we start?")
+            text = String(localized: "Hello, I’m Astrid, your reading companion. I’m an AI, and I can only see your shelves, ratings and finish tags. I’d love to help you find your next good story. Where shall we start?")
         }
         return CompanionMessageRow(text: text, linkable: { t in books.contains { CompanionContext.key($0.title) == CompanionContext.key(t) } })
     }
@@ -370,7 +370,11 @@ struct CompanionChatView: View {
                 if m.showGoal { goalCard }
                 ForEach(m.picks.filter { $0.state != .notForMe }) { pick in
                     ChatBookCard(pick: pick,
-                                 onOpen: { openPick = PickPreview(pick: pick, message: m) },
+                                 shelfCover: shelfBook(pick)?.coverData,
+                                 onOpenBook: { if let b = shelfBook(pick) { show(b) } },
+                                 onOpen: {
+                                     if let b = shelfBook(pick) { show(b) } else { openPick = PickPreview(pick: pick, message: m) }
+                                 },
                                  onAdd: { add(pick, from: m) },
                                  onUndo: { undo(pick, from: m) },
                                  onNotForMe: { withAnimation(.easeOut(duration: Motion.base)) { companion.setPick(pick, in: m, state: .notForMe) } })
@@ -553,6 +557,12 @@ struct CompanionChatView: View {
         companion.send(text, books: books, goal: goal)
     }
 
+    /// The reader's own copy of a pick that's already on Want to read.
+    private func shelfBook(_ pick: CompanionPick) -> Book? {
+        guard pick.onWantToRead == true else { return nil }
+        return books.first { CompanionContext.key($0.title) == CompanionContext.key(pick.title) }
+    }
+
     private func followUp(_ f: String) {
         if f == String(localized: "Open my stats") { companion.isOpen = false; router.openStats = true; return }
         ask(f)
@@ -569,8 +579,8 @@ struct CompanionChatView: View {
         context.insert(book)
         try? context.save()
         withAnimation(.easeOut(duration: Motion.base)) { companion.setPick(pick, in: m, state: .added) }
-        notifications.show(String(localized: "Added to Up next"),
-                           message: String(localized: "Lovely choice. It’s waiting in Up next whenever you’re ready."),
+        notifications.show(String(localized: "Added to Want to read"),
+                           message: String(localized: "Lovely choice. It’s waiting on your Want to read list whenever you’re ready."),
                            actionTitle: String(localized: "Undo")) {
             undo(pick, from: m)
         }
@@ -765,6 +775,9 @@ struct ThinkingIndicator: View {
 /// 🧱 Components › Chat book card: a real book inside an answer (max 3). Tap = open the pick.
 struct ChatBookCard: View {
     let pick: CompanionPick
+    /// The reader's own cover when the pick is already on Want to read.
+    var shelfCover: Data? = nil
+    var onOpenBook: () -> Void = {}
     let onOpen: () -> Void
     let onAdd: () -> Void
     let onUndo: () -> Void
@@ -778,7 +791,11 @@ struct ChatBookCard: View {
     var body: some View {
         HStack(alignment: .top, spacing: Space.s12) {
             Button(action: onOpen) {
-                RemoteCover(url: pick.coverURL, title: pick.title, width: 40)
+                if let shelfCover {
+                    BookCover(source: .data(shelfCover), title: pick.title, width: 40)
+                } else {
+                    RemoteCover(url: pick.coverURL, title: pick.title, width: 40)
+                }
             }
             .buttonStyle(QsPressStyle())
             .accessibilityHidden(true)
@@ -788,6 +805,16 @@ struct ChatBookCard: View {
                         Text(pick.title).font(.custom("Newsreader", size: 17, relativeTo: .headline).weight(.medium))
                             .foregroundStyle(theme.palette.ink).multilineTextAlignment(.leading)
                         Text(meta).font(.footnote).foregroundStyle(theme.palette.ink2)
+                        if pick.onWantToRead == true {
+                            HStack(spacing: Space.s4) {
+                                Image("qs.heart").resizable().frame(width: Size.iconS - 2, height: Size.iconS - 2).accessibilityHidden(true)
+                                Text("On your Want to read")
+                            }
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(theme.palette.aiInk)
+                            .padding(.horizontal, Space.s8).padding(.vertical, Space.s2)
+                            .background(theme.palette.aiSoft, in: Capsule())
+                        }
                         if !pick.reason.isEmpty {
                             Text(pick.reason).font(.footnote).foregroundStyle(theme.palette.ink).multilineTextAlignment(.leading)
                         }
@@ -799,11 +826,15 @@ struct ChatBookCard: View {
                 .accessibilityElement(children: .combine)
                 .accessibilityHint("Shows why this pick")
                 HStack(spacing: Space.s8) {
-                    if pick.state == .added {
-                        Button("In Up next", action: {}).buttonStyle(QsButtonStyle(priority: .secondary, size: .small)).fixedSize().disabled(true)
+                    if pick.onWantToRead == true {
+                        // Already chosen once: open it, never "Start reading" from here.
+                        Button("Open book", action: onOpenBook).buttonStyle(QsButtonStyle(priority: .secondary, size: .small)).fixedSize()
+                        Button("Not for me", action: onNotForMe).buttonStyle(QsButtonStyle(priority: .text, size: .small)).fixedSize()
+                    } else if pick.state == .added {
+                        Button("In Want to read", action: {}).buttonStyle(QsButtonStyle(priority: .secondary, size: .small)).fixedSize().disabled(true)
                         Button("Undo", action: onUndo).buttonStyle(QsButtonStyle(priority: .text, size: .small)).fixedSize()
                     } else {
-                        Button("Add to Up next", action: onAdd).buttonStyle(QsButtonStyle(priority: .secondary, size: .small)).fixedSize()
+                        Button("Add to Want to read", action: onAdd).buttonStyle(QsButtonStyle(priority: .secondary, size: .small)).fixedSize()
                         Button("Not for me", action: onNotForMe).buttonStyle(QsButtonStyle(priority: .text, size: .small)).fixedSize()
                     }
                 }
@@ -884,9 +915,9 @@ struct PickDetailSheet: View {
         .safeAreaInset(edge: .bottom, spacing: 0) {
             Group {
                 if pick.state == .added {
-                    Button("In Up next") {}.buttonStyle(QsButtonStyle(priority: .secondary)).disabled(true)
+                    Button("In Want to read") {}.buttonStyle(QsButtonStyle(priority: .secondary)).disabled(true)
                 } else {
-                    Button("Add to Up next") { onAdd(); dismiss() }.buttonStyle(QsButtonStyle(priority: .primary))
+                    Button("Add to Want to read") { onAdd(); dismiss() }.buttonStyle(QsButtonStyle(priority: .primary))
                 }
             }
             .padding(.horizontal, Space.s20)

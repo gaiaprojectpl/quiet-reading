@@ -29,6 +29,10 @@ struct CompanionMessage: Identifiable, Codable, Equatable {
     var status: Status = .done
     var date = Date.now
     var feedback: Int = 0   // 1 helpful, -1 not helpful
+    /// Astrid offered book ideas and waits for a yes (persona v0.3: offer once, cards only after yes).
+    var offersBooks: Bool? = nil
+    /// Astrid asked her one question before suggesting ("cosy, or a bit more adventure?").
+    var askedPreference: Bool? = nil
 }
 
 /// A real book suggested inside an answer (Chat book card). Always from the catalogue.
@@ -42,6 +46,8 @@ struct CompanionPick: Identifiable, Codable, Equatable {
     var coverURL: URL?
     var reason: String
     var state: State = .open
+    /// Already on the reader's Want to read list: shown first, "Open book" instead of "Add".
+    var onWantToRead: Bool? = nil
 }
 
 /// The conversation, its state and the companion's settings. Lives for the app session;
@@ -53,6 +59,8 @@ final class CompanionStore {
 
     var messages: [CompanionMessage] = []
     var phase: Phase = .idle
+    /// The reader said no to an offer of book ideas: don't offer again in this conversation.
+    private var declinedOffer = false
     var isOpen = false
     /// Screens with buttons pinned to the bottom (Explore › book preview) hide the floating button.
     var buttonHidden = false
@@ -110,28 +118,36 @@ final class CompanionStore {
         task = Task { [weak self] in
             guard let self else { return }
             do {
-                // Numbers about the goal and the year always come from the app, never the model
-                // (Flow 12: "numbers come from a stat card built from app data"). Works without AI too.
-                if let local = CompanionFallback.answer(question, context: context) {
-                    try await Task.sleep(for: .milliseconds(600))
+                // Persona v0.3 · natural answers first (greetings, who are you, thanks, goals): no model, no cards.
+                let intent = CompanionConversation.classify(question)
+                let lastAstrid = messages.dropLast().last { $0.role == .companion }
+                if intent == .no, lastAstrid?.offersBooks == true { declinedOffer = true }
+                let alreadyAsked = lastAstrid?.askedPreference == true
+                if !(intent == .vagueRequest && alreadyAsked),
+                   let local = CompanionConversation.reply(to: intent, context: context,
+                                                           includeNotes: UserDefaults.standard.bool(forKey: CompanionKeys.includeNotes),
+                                                           includeProfile: UserDefaults.standard.bool(forKey: CompanionKeys.includeProfile)) {
+                    try await Task.sleep(for: .milliseconds(500))
                     append(local)
                     phase = .idle
                     save()
                     return
                 }
+                // Suggest only when asked, after a yes to an offer, or right after her one question.
+                let yesToOffer = intent == .yes && lastAstrid?.offersBooks == true
+                let answeringHerQuestion = alreadyAsked
+                let mode: CompanionConversation.Mode = (yesToOffer || answeringHerQuestion || intent == .vagueRequest)
+                    ? .suggest(rereads: CompanionConversation.asksReread(question))
+                    : .converse(mayOffer: !declinedOffer)
                 if availability != .available {
-                    if let local = CompanionFallback.answer(question, context: context) {
-                        try await Task.sleep(for: .milliseconds(700))
-                        append(local)
-                    } else {
-                        append(CompanionFallback.unavailable(availability))
-                    }
+                    append(CompanionFallback.unavailable(availability))
                     phase = .idle
                     save()
                     return
                 }
                 var reply = CompanionMessage(role: .companion, text: "", status: .streaming)
-                let stream = try CompanionEngineFactory.engine(&engine).answer(question, context: context, history: Array(messages.suffix(6)))
+                let asked = yesToOffer ? String(localized: "Yes, please suggest a few books.") + " (" + (lastAstrid?.text ?? "") + ")" : question
+                let stream = try CompanionEngineFactory.engine(&engine).answer(asked, context: context, history: Array(messages.suffix(6)), mode: mode)
                 for try await partial in stream {
                     if Task.isCancelled { break }
                     reply.text = CompanionText.sanitize(partial.text)
@@ -148,6 +164,7 @@ final class CompanionStore {
                         messages[i].text = CompanionText.matchCount(messages[i].text, picks: partial.picks.count)
                         messages[i].followUps = partial.followUps
                         messages[i].showGoal = partial.showGoal
+                        messages[i].offersBooks = partial.offersBooks
                         messages[i].status = .done
                         if messages[i].text.isEmpty { messages[i].text = String(localized: "Here’s what I found. I hope you enjoy them.") }
                     }
@@ -229,6 +246,7 @@ final class CompanionStore {
     func deleteHistory() {
         stop()
         messages = []
+        declinedOffer = false
         engine = nil
         try? FileManager.default.removeItem(at: Self.url)
     }
@@ -257,7 +275,12 @@ nonisolated struct CompanionContext: Sendable {
     let onPaceFor: Int
     let pagesLeftInCurrent: Int?
     let currentTitle: String?
-    let libraryKeys: Set<String>
+    /// Books Astrid must never suggest: read, reading now, didn't finish, "Not for me" (by title key).
+    let excludedKeys: Set<String>
+    /// Books on Want to read: allowed, and shown first when they fit.
+    let wantToReadKeys: Set<String>
+    /// "on page 120 of 340" for the book being read now (spoiler line).
+    let currentPageLine: String?
     let liked: [String]
     /// First name, only with "Include my profile" on.
     let firstName: String?
@@ -289,7 +312,12 @@ nonisolated struct CompanionContext: Sendable {
         onPaceFor = g.onPaceFor
         currentTitle = readingBooks.first?.title
         pagesLeftInCurrent = readingBooks.first.flatMap { b in b.pageCount.map { max(0, $0 - b.currentPage) } }
-        libraryKeys = Set(books.map { CompanionContext.key($0.title) })
+        excludedKeys = Set(books.filter { $0.status != .toRead }.map { CompanionContext.key($0.title) })
+            .union(notForMe.map { CompanionContext.key($0) })
+        wantToReadKeys = Set(books.filter { $0.status == .toRead }.map { CompanionContext.key($0.title) })
+        currentPageLine = readingBooks.first.map { b in
+            b.currentPage > 0 ? "on page \(b.currentPage)" + (b.pageCount.map { " of \($0)" } ?? "") : "just starting"
+        }
     }
 
     nonisolated static func key(_ title: String) -> String {
@@ -314,9 +342,26 @@ enum CompanionText {
             }
         }
         if picks == 1 {
-            for (a, b) in [("books", "book"), ("tales", "tale"), ("stories", "story"), ("standalones", "standalone"), ("reads", "read"), ("Both", "It"), ("both", "it")] {
+            for (a, b) in [("books", "book"), ("tales", "tale"), ("stories", "story"), ("standalones", "standalone"), ("reads", "read"),
+                           ("companions", "companion"), ("paths", "path"), ("picks", "pick"), ("novels", "novel"), ("choices", "choice"),
+                           ("They carry", "It carries"), ("they carry", "it carries"), ("It carry", "It carries"), ("Both share", "It shares"),
+                           ("Both", "It"), ("both", "it")] {
                 out = out.replacingOccurrences(of: " \(a) ", with: " \(b) ").replacingOccurrences(of: " \(a)**", with: " \(b)**")
                     .replacingOccurrences(of: "\(a) ", with: "\(b) ", options: .anchored)
+            }
+        }
+        if picks == 1, let regex = try? NSRegularExpression(pattern: #"\*\*one ([^*]*?)([a-z]+[^s])s\*\*"#, options: .caseInsensitive) {
+            // "**one quiet pieces**" → "**one quiet piece**" (any plural noun at the end of the bold phrase).
+            let ns = out as NSString
+            out = regex.stringByReplacingMatches(in: out, range: NSRange(location: 0, length: ns.length), withTemplate: "**one $1$2**")
+        }
+        if picks == 1 {
+            // One book: "Here are **one** quiet tale… It carry" → "Here is **one** quiet tale… It carries".
+            for (a, b) in [("Here are **one", "Here is **one"), ("There are **one", "There is **one"), ("Here are one", "Here is one"),
+                           ("There are one", "There is one"), ("It carry ", "It carries "), ("It offer ", "It offers "),
+                           ("It share ", "It shares "), ("It feel ", "It feels "), ("It bring ", "It brings "), ("It have ", "It has "),
+                           ("It end ", "It ends "), ("It hold ", "It holds "), ("It move ", "It moves ")] {
+                out = out.replacingOccurrences(of: a, with: b)
             }
         }
         return out
@@ -361,29 +406,6 @@ enum CompanionText {
 /// Answers that don't need the model (numbers always come from the app), and calm
 /// explanations when the on-device model isn't available.
 enum CompanionFallback {
-    static func answer(_ q: String, context c: CompanionContext) -> CompanionMessage? {
-        let lower = q.lowercased()
-        let asksNumbers = lower.contains("goal") || lower.contains("my year") || lower.contains("this year")
-            || lower.contains("how is my reading") || lower.contains("how’s my reading") || lower.contains("how many books")
-        guard asksNumbers, !lower.contains("plan"), !lower.contains("next book") else { return nil }
-        return CompanionMessage(role: .companion, text: goalText(c),
-                                followUps: [String(localized: "Open my stats"), String(localized: "Find my next book")], showGoal: true)
-    }
-
-    static func goalText(_ c: CompanionContext) -> String {
-        let perMonth = c.perMonth.formatted(.number.precision(.fractionLength(0...1)))
-        if c.goal > 0 {
-            if c.finishedThisYear >= c.goal {
-                return String(localized: "You’ve finished **\(c.finishedThisYear) of your \(c.goal) books** this year. Your goal is reached. What a lovely year of stories.")
-            }
-            return String(localized: "You’ve finished **\(c.finishedThisYear) of your \(c.goal) books** so far this year, about **\(perMonth) a month**. At this gentle pace you’d finish around \(c.onPaceFor) this year. Take your time.")
-        }
-        if c.finishedThisYear == 0 {
-            return String(localized: "Some months are for living, not reading. Your books will wait for you, and I’ll be here whenever you’re ready.")
-        }
-        return String(localized: "You’ve finished **\(c.finishedThisYear) books** so far this year, about **\(perMonth) a month**. What a lovely year of stories.")
-    }
-
     static func unavailable(_ a: CompanionStore.Availability) -> CompanionMessage {
         let text: String
         switch a {

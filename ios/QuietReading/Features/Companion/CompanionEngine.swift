@@ -8,6 +8,7 @@ struct CompanionPartial: Sendable {
     var picks: [CompanionPick] = []
     var followUps: [String] = []
     var showGoal = false
+    var offersBooks = false
     var isFinal = false
 }
 
@@ -37,7 +38,8 @@ enum CompanionEngineFactory {
 }
 
 protocol CompanionAnswering: AnyObject {
-    func answer(_ question: String, context: CompanionContext, history: [CompanionMessage]) throws -> AsyncThrowingStream<CompanionPartial, Error>
+    func answer(_ question: String, context: CompanionContext, history: [CompanionMessage],
+                mode: CompanionConversation.Mode) throws -> AsyncThrowingStream<CompanionPartial, Error>
 }
 
 // MARK: - On-device (Apple Foundation Models)
@@ -56,6 +58,9 @@ struct CompanionReply {
 
     @Guide(description: "true only when the answer is about the reader's yearly reading goal or how their year is going")
     var showGoal: Bool
+
+    @Guide(description: "true only if the answer ends by offering to find books, for example 'If you'd like, I can find something with the same feeling'")
+    var offersBooks: Bool
 }
 
 @available(iOS 26.0, *)
@@ -71,14 +76,16 @@ struct CompanionPickChoice {
 @available(iOS 26.0, *)
 @Generable
 struct SearchPlan {
-    @Guide(description: "true if the reader wants book suggestions or ideas for what to read")
+    @Guide(description: "true only if the reader explicitly asks for book suggestions: recommend, what next, something like a book, in the mood for, a short one, for a holiday. false for greetings, questions about Astrid, talking about a book, saying they finished a book, or describing a mood without asking.")
     var wantsBooks: Bool
     @Guide(description: "A catalogue search of 2 to 5 words for the kind of book they want, for example 'cozy fantasy standalone' or 'gentle literary fiction'. Use genres and moods, not titles they already read.")
     var query: String
     @Guide(description: "A second, different search of 2 to 5 words, for example an author they might like")
     var alternative: String
-    @Guide(description: "3 to 5 real, published, well-known books that fit what the reader asked for, written as 'Title by Author'. Never books from the reader's own lists.", .maximumCount(5))
+    @Guide(description: "3 to 5 real, published, well-known books that fit what the reader asked for, written as 'Title by Author'. Respect every word of the request: short means under 300 pages; cosy means gentle, warm and low-stakes, never tragic, bleak or violent; light means easy and hopeful. Never books from the reader's own lists. In a series, only the next unread book.", .maximumCount(5))
     var titles: [String]
+    @Guide(description: "Up to 2 titles copied exactly from the reader's Want to read list that fit what they asked for, or empty.", .maximumCount(2))
+    var fromWantToRead: [String]
 }
 
 /// Candidates returned by the catalogue tool, so picks can be checked against real books.
@@ -102,36 +109,85 @@ final class OnDeviceCompanion: CompanionAnswering {
     private let registry = CandidateRegistry()
     private var turns = 0
 
-    func answer(_ question: String, context: CompanionContext, history: [CompanionMessage]) throws -> AsyncThrowingStream<CompanionPartial, Error> {
+    func answer(_ question: String, context: CompanionContext, history: [CompanionMessage],
+                mode: CompanionConversation.Mode) throws -> AsyncThrowingStream<CompanionPartial, Error> {
         let instructionsText = Self.instructions(context)
         if session == nil { session = Self.makeSession(instructions: instructionsText); turns = 0 }
         guard let session else { throw CompanionError(message: "") }
         let registry = registry
-        let exclude = context.libraryKeys.union(context.notForMe.map(CompanionContext.key))
-        let profile = Self.profileLine(context)
+        // Persona v0.3 · Recommendation logic: never read, reading now, didn't finish or "Not for me"
+        // (a reread only when the reader asks). Want to read is allowed and shown first.
+        let rereads: Bool
+        let suggesting: Bool
+        let mayOffer: Bool
+        switch mode {
+        case .suggest(let r): suggesting = true; rereads = r; mayOffer = false
+        case .converse(let offer): suggesting = false; rereads = CompanionConversation.asksReread(question); mayOffer = offer
+        }
+        let exclude = rereads ? Set(context.notForMe.map(CompanionContext.key)) : context.excludedKeys
+        let wantToRead = context.wantToReadKeys
+        let wantToReadLines = context.wantToRead
+        let profile = Self.profileLine(context) + (context.wantToRead.isEmpty ? "" : ". Want to read list: " + context.wantToRead.prefix(10).map { "\($0.title) by \($0.author)" }.joined(separator: "; "))
         return AsyncThrowingStream { continuation in
             let task = Task {
                 do {
                     // Step 1 · plan: does the reader want books, and what should we search for?
                     let planner = Self.makeSession(instructions: "You turn a reader's message into a short book catalogue search and name real, well-known books that fit. Reader's favourite books: \(profile)")
                     let plan = try await planner.respond(to: question, generating: SearchPlan.self).content
-                    Logger(subsystem: "app.quietreading", category: "companion").notice("pcc=\(Self.usesPrivateCloud) plan wants=\(plan.wantsBooks) q=\(plan.query, privacy: .public) alt=\(plan.alternative, privacy: .public) titles=\(plan.titles.joined(separator: " | "), privacy: .public)")
+                    // An explicit request ("something like Piranesi but cosier") suggests too; book talk doesn't.
+                    let suggestingNow = suggesting || plan.wantsBooks
+                    do { Logger(subsystem: "app.quietreading", category: "companion").notice("pcc=\(Self.usesPrivateCloud) plan wants=\(plan.wantsBooks) q=\(plan.query, privacy: .public) alt=\(plan.alternative, privacy: .public) titles=\(plan.titles.joined(separator: " | "), privacy: .public)") }
                     // Step 2 · retrieve real books from the catalogue (no invented books).
                     var catalogue = ""
-                    if plan.wantsBooks {
+                    if suggestingNow {
                         var found: [BookCandidate] = []
                         func isNew(_ c: BookCandidate) -> Bool {
                             !exclude.contains(CompanionContext.key(c.title)) && !found.contains { CompanionContext.key($0.title) == CompanionContext.key(c.title) }
                         }
-                        // Books the model knows, verified one by one against the catalogue (unverifiable ones are dropped).
-                        for t in plan.titles.prefix(5) {
-                            if let hit = await Self.verify(t), isNew(hit) { found.append(hit) }
+                        // Want to read first: the reader already chose these once (at most one, shown first).
+                        for t in plan.fromWantToRead.prefix(1) {
+                            let key = CompanionContext.key(t.components(separatedBy: " by ").first ?? t)
+                            if let line = wantToReadLines.first(where: { CompanionContext.key($0.title) == key }) {
+                                found.append(BookCandidate(id: "wtr:\(key)", title: line.title, author: line.author, pageCount: line.pages,
+                                                           isbn: nil, coverURL: nil, detail: nil))
+                            }
                         }
+                        // Books the model knows, verified one by one against the catalogue (unverifiable ones are dropped).
+                        // "Short" is checked against the real page count, not left to the model.
+                        let wantsShort = ["short", "quick", "novella", "under 300", "under 250", "under 200"].contains { question.lowercased().contains($0) }
+                        for t in plan.titles.prefix(5) {
+                            if let hit = await Self.verify(t), isNew(hit), !(wantsShort && (hit.pageCount ?? 0) > 320) { found.append(hit) }
+                        }
+                        // Too few real books from the model (small models invent titles): fill in from the catalogue,
+                        // but only by genre (never loose mood words), with the real length filter, well-rated,
+                        // well-known books (100+ ratings, a cover, an English title). No genre → the honest answer.
+                        if found.filter({ !$0.id.hasPrefix("wtr:") }).count < 2 {
+                            let words = (question + " " + plan.query).lowercased()
+                            let genreWords: [(String, ExploreGenre)] = [("fantasy", .fantasy), ("mystery", .mystery), ("crime", .mystery), ("detective", .mystery),
+                                ("romance", .romance), ("love story", .romance), ("classic", .classics), ("poetry", .poetry), ("poems", .poetry),
+                                ("historical", .historical), ("non-fiction", .nonFiction), ("nonfiction", .nonFiction), ("memoir", .nonFiction),
+                                ("short stories", .shortStories)]
+                            if let genre = genreWords.first(where: { words.contains($0.0) })?.1 {
+                                var filters = ExploreFilters(genres: [genre])
+                                if wantsShort { filters.length = .under300 }
+                                if let page = try? await ExploreCatalog.search(text: "", filters: filters, sort: .topRated, limit: 30) {
+                                    for b in page.books where found.count < 3 {
+                                        guard (b.ratingsCount ?? 0) >= 100, b.coverID != nil,
+                                              b.title.unicodeScalars.allSatisfy({ $0.value < 0x250 }) else { continue }
+                                        let c = BookCandidate(id: "ol:\(b.id)", title: b.title, author: b.author, pageCount: b.pages,
+                                                              isbn: b.isbn, coverURL: b.coverURL, detail: nil)
+                                        if isNew(c), !(wantsShort && (c.pageCount ?? 0) > 320) { found.append(c) }
+                                    }
+                                }
+                            }
+                        }
+                        // Any catalogue pick that is on Want to read goes first too.
+                        found.sort { wantToRead.contains(CompanionContext.key($0.title)) && !wantToRead.contains(CompanionContext.key($1.title)) }
                         if found.isEmpty && !question.isEmpty {
                             // Nothing could be confirmed as a real book: say so honestly instead of letting the model guess.
                             let upNext = context.wantToRead.first?.title
-                            let text = upNext.map { String(localized: "I couldn’t find a good match in the library just now. While I keep looking, *\($0)* is waiting on your Up next. What did you love most in your last good read?") }
-                                ?? String(localized: "I couldn’t find a good match in the library just now. What did you love most in your last good read? It helps me look in the right place.")
+                            let text = upNext.map { String(localized: "I couldn’t find more you haven’t read in this corner of the library. *\($0)* is already waiting on your Want to read list. Shall I look a little wider?") }
+                                ?? String(localized: "I couldn’t find more you haven’t read in this corner of the library. Shall I look a little wider?")
                             continuation.yield(CompanionPartial(text: text, followUps: [String(localized: "Something cosy"), String(localized: "Something short")], isFinal: true))
                             continuation.finish()
                             return
@@ -140,9 +196,16 @@ final class OnDeviceCompanion: CompanionAnswering {
                             catalogue = "\n\nNo suggestions could be checked in the catalogue just now (the phone may be offline). Say gently that you couldn't find a good match in the library just now. Then, if they have books on Up next, suggest one of those by title. No picks."
                         } else {
                             let stored = registry.store(Array(found.prefix(3)))   // at most 3 cards per answer
-                            catalogue = "\n\nReal books you may suggest. There \(stored.count == 1 ? "is 1 book" : "are \(stored.count) books"): put all their ids in picks and say \(stored.count == 1 ? "one book" : "\(stored.count) books"), never a different number, never other books:\n"
-                                + stored.map { id, c in "\(id): \(c.title) by \(c.author)" + (c.pageCount.map { ", \($0) pages" } ?? "") }.joined(separator: "\n")
+                            catalogue = "\n\nReal books you may suggest. There \(stored.count == 1 ? "is 1 book" : "are \(stored.count) books"): put all their ids in picks and say \(stored.count == 1 ? "one book" : "\(stored.count) books"), never a different number, never other books. Connect each to a book they read before and the shared feeling. If one is on their Want to read list, say so. End with one follow-up question about their past reading."
+                                + (rereads ? " These may be rereads: say clearly that a book is a reread." : "") + "\n"
+                                + stored.map { id, c in "\(id): \(c.title) by \(c.author)" + (c.pageCount.map { ", \($0) pages" } ?? "")
+                                    + (wantToRead.contains(CompanionContext.key(c.title)) ? " (already on their Want to read list)" : "") }.joined(separator: "\n")
                         }
+                    }
+                    if !suggestingNow {
+                        catalogue = "\n\n(Do not suggest or list books now; picks stay empty. Answer what was asked. "
+                            + (mayOffer ? "If they finished or put down a book or describe a mood, you may offer once at the end: 'If you'd like, I can find something with the same feeling.' and set offersBooks." : "Do not offer book suggestions; they said no earlier.")
+                            + ")"
                     }
                     // Step 3 · answer, streamed.
                     let options = GenerationOptions(maximumResponseTokens: 500)
@@ -158,11 +221,13 @@ final class OnDeviceCompanion: CompanionAnswering {
                     var lastPicks: [CompanionPickChoice.PartiallyGenerated]? = nil
                     var follow: [String] = []
                     var showGoal = false
+                    var offers = false
                     for try await snapshot in stream {
                         let c = snapshot.content
                         lastText = c.text ?? lastText
                         follow = c.followUps ?? follow
                         showGoal = c.showGoal ?? showGoal
+                        offers = c.offersBooks ?? offers
                         lastPicks = c.picks?.map { $0 } ?? lastPicks
                         continuation.yield(CompanionPartial(text: lastText))
                     }
@@ -178,13 +243,17 @@ final class OnDeviceCompanion: CompanionAnswering {
                             if low.contains("illustrat") || low.contains("cover art") || low.contains("editor") || low.contains("translat") { continue }
                             names.append(n)
                         }
+                        // Last check before showing a card (validation after the answer): never a read book.
+                        guard !exclude.contains(CompanionContext.key(cand.title)) else { return nil }
                         return CompanionPick(id: cand.id, title: cand.title, author: names.joined(separator: ", "), pageCount: cand.pageCount,
                                              isbn: cand.isbn, coverURL: cand.coverURL,
-                                             reason: Self.cleanReason(p.reason ?? ""))
+                                             reason: Self.cleanReason(p.reason ?? ""),
+                                             onWantToRead: wantToRead.contains(CompanionContext.key(cand.title)) ? true : nil)
                     }
                     let cleanFollow = follow.map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty && $0.count <= 32 }.prefix(3)
-                    continuation.yield(CompanionPartial(text: lastText, picks: Array(picks.prefix(3)), followUps: Array(cleanFollow),
-                                                        showGoal: showGoal, isFinal: true))
+                    continuation.yield(CompanionPartial(text: lastText, picks: suggestingNow ? Array(picks.prefix(3)) : [],
+                                                        followUps: Array(cleanFollow),
+                                                        showGoal: showGoal && !suggestingNow, offersBooks: offers && !suggestingNow && mayOffer, isFinal: true))
                     continuation.finish()
                 } catch {
                     continuation.finish(throwing: Self.friendly(error, reset: { self.session = nil }))
@@ -259,19 +328,25 @@ final class OnDeviceCompanion: CompanionAnswering {
         }
         var p = """
         You are Astrid, the reading companion in the Quiet Reading app. You are an AI.
-        Persona: a kind, patient, well-read grandmother of stories who wishes the reader well and wants them to discover as many beautiful stories as they can. You work like a librarian doing readers' advisory: ask what they loved (pace, characters, story, setting, tone, language), then offer a few good matches with one reason each, and let them choose.
-        Values: every reader her book; there is no wrong way to read; never judge, grade or label the reader or their taste; respect their time and privacy.
-        Voice: warm, calm, polite, encouraging, British spelling. Answer first. 1 to 3 short sentences per paragraph, at most 90 words. No emoji, no exclamation marks, no headings, no tables, no links, no pet names such as dear. Gentle wishes instead, like 'I hope you enjoy it' or 'Happy reading'. Words you avoid: only, behind, should, must, failed, streak, hurry, guilty pleasure, actually, obviously.
-        Rules: only recommend books from the 'Real books you may suggest' list in the message, at most 3, and put their ids in picks. Never suggest a book the reader already finished, is reading or has on Up next. Never invent titles, quotes or facts. Never claim to be human or to have a life, family, age or memories outside the app. No spoilers unless asked, and warn first. Do not write essays or homework; offer to help find books or talk about what they liked instead. Stay on books and reading. If the reader shares something distressing, respond kindly, suggest reaching out to someone they trust or a support line, and do not act as a therapist.
+        Persona: a kind, patient, well-read grandmother of stories who wishes the reader well. You work like a librarian doing readers' advisory: ask what they loved (pace, characters, story, setting, tone, language), then offer a few good matches with one reason each, and let them choose.
+        Values: every reader her book; there is no wrong way to read; never judge, grade or label the reader or their taste.
+        Voice: warm, calm, polite, encouraging, British spelling. Answer first. 1 to 3 short sentences per paragraph, at most 90 words. No emoji, no exclamation marks, no headings, no tables, no links, no pet names. Gentle wishes instead, like 'I hope you enjoy it' or 'Happy reading'. Avoid: only, behind, should, must, failed, streak, hurry, guilty pleasure, actually, obviously.
+        Conversation: answer exactly what was asked, like a kind person would. Modes: book talk, finding a book, reading check-in and planning (both only when asked). Off-topic (news, weather, coding, medical, legal, money): one kind line, then back to books.
+        Book talk: invite with one open question, reflect what they said in one sentence, add at most one small thought you are sure of (otherwise say you're not sure), at most one follow-up. For the book they are reading now, never go past their current page; ask before discussing an ending. Never summarise or retell a whole book, never correct their interpretation.
+        Questions: at most one per message, at the end. If their answers are short, offer instead of asking. Never ask personal questions beyond reading.
+        Suggesting: only when asked or after they say yes to your offer. Never in reply to someone sharing something heavy. When suggesting, connect every pick to a book they read before and the shared feeling.
+        Recommendations: only books from the 'Real books you may suggest' list, at most 3, ids in picks. Never a book they read, are reading, did not finish or said not for me. Rereads only when asked, and say it is a reread. In a series, only the next unread book. If there are not enough, say so kindly and offer to look wider.
+        Goals: never bring up goals, pace or streaks, never suggest changing or setting a goal.
+        Rules: never invent titles, quotes or facts. Never claim to be human or to have a life outside the app. No essays, reviews or homework. If the reader shares something distressing, respond kindly, suggest reaching out to someone they trust or a support line, and do not act as a therapist.
         Data: you see shelves, ratings, finish tags and progress, notes only if the reader turned them on. Use only the numbers below; never guess numbers.
         """
         p += "\n"
         p += "Reader's year \(c.year): finished \(c.finishedThisYear) books, about \(c.perMonth.formatted(.number.precision(.fractionLength(0...1)))) a month."
-        if c.goal > 0 { p += " Goal: \(c.goal) books, on pace for \(c.onPaceFor)." }
-        if let t = c.currentTitle { p += "\nReading now: \(t)" + (c.pagesLeftInCurrent.map { ", \($0) pages left" } ?? "") + "." }
+        if c.goal > 0 { p += " Goal: \(c.goal) books (mention only if asked)." }
+        if let t = c.currentTitle { p += "\nReading now: \(t), " + (c.currentPageLine ?? "") + " (no spoilers past this page)." }
         if c.reading.count > 1 { p += "\nAlso reading: " + c.reading.dropFirst().prefix(4).map(fmt).joined(separator: "; ") + "." }
         if !c.finished.isEmpty { p += "\nFinished, favourites first: " + c.finished.prefix(12).map(fmt).joined(separator: "; ") + "." }
-        if !c.wantToRead.isEmpty { p += "\nAlready on their Up next list: " + c.wantToRead.prefix(6).map(\.title).joined(separator: "; ") + "." }
+        if !c.wantToRead.isEmpty { p += "\nOn their Want to read list: " + c.wantToRead.prefix(6).map(\.title).joined(separator: "; ") + "." }
         if !c.notForMe.isEmpty { p += "\nThey said not for me to: " + c.notForMe.suffix(10).joined(separator: "; ") + ". Suggest something different from these." }
         if !c.liked.isEmpty { p += "\nSuggestions they found helpful: " + c.liked.suffix(6).joined(separator: "; ") + "." }
         if !c.notes.isEmpty { p += "\nTheir recent notes: " + c.notes.joined(separator: " / ") }

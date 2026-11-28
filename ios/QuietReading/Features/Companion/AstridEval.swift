@@ -23,7 +23,11 @@ enum AstridEval {
         Taste(name: "New reader", books: [("The Little Prince", "Antoine de Saint-Exupéry", 5, ["Hopeful"])]),
     ]
 
-    static let questions = ["Find my next book", "Something short and cosy. I’m tired this week.", "How is my reading year going?"]
+    /// Persona v0.3: conversation questions (no cards, no stats) + book requests + a goal question.
+    static let questions = ["Who are you?", "Hi", "Recommend me something", "Something short and cosy. I’m tired this week.",
+                            "How is my reading year going?", "Should I read more?", "I just finished The Night Circus."]
+    static let noCards: Set<String> = ["Who are you?", "Hi", "Recommend me something", "How is my reading year going?",
+                                       "Should I read more?", "I just finished The Night Circus."]
     static let avoided = ["only", "behind", "should", "must", "failed", "streak", "hurry", "guilty pleasure", "actually", "obviously"]
 
     struct Result: Codable { let taste: String; let question: String; let text: String; let picks: [String]; let problems: [String]; let seconds: Double }
@@ -74,11 +78,16 @@ enum AstridEval {
         if a.text.contains("http") { problems.append("link") }
         if a.text.split(separator: "\n").contains(where: { $0.hasPrefix("#") }) { problems.append("heading") }
         let lower = " " + a.text.lowercased() + " "
-        for w in avoided where lower.contains(" \(w) ") || lower.contains(" \(w),") || lower.contains(" \(w).") { problems.append("avoided word: \(w)") }
+        for w in avoided where !(w == "only" && lower.contains(" only know ")) && lower.contains(" \(w) ") || lower.contains(" \(w),") || lower.contains(" \(w).") { problems.append("avoided word: \(w)") }
         let words = a.text.split { $0 == " " || $0 == "\n" }.count
         if words > 120 { problems.append("too long (\(words) words)") }
         if a.status == .failed { problems.append("error: \(a.text)") }
         if question.contains("year"), !a.showGoal { problems.append("year question without the goal card") }
+        if noCards.contains(question), !a.picks.isEmpty { problems.append("book cards where the persona says none") }
+        if !question.contains("year"), a.showGoal || lower.contains(" goal") { problems.append("brought up goals unasked") }
+        if question.contains("year"), lower.contains(" pace") || lower.contains(" should ") { problems.append("goal advice") }
+        if question == "Recommend me something", !a.text.contains("?") { problems.append("vague request without one question") }
+        if a.text.filter({ $0 == "?" }).count > 1 { problems.append("more than one question") }
         if question.contains("year"), !a.picks.isEmpty { problems.append("book picks in a numbers answer") }
         let numberWords = ["one": 1, "two": 2, "three": 3]
         for (w, n) in numberWords where lower.contains(" \(w) ") || lower.contains("**\(w) ") {
