@@ -104,6 +104,8 @@ struct RootView: View {
         }
         #endif
         .tint(resolvedTheme.palette.accentInk)
+        // Typed text and unstyled text use the theme's ink (never the system's white in dark mode).
+        .foregroundStyle(resolvedTheme.palette.ink)
         .environment(\.theme, resolvedTheme)
     }
 }

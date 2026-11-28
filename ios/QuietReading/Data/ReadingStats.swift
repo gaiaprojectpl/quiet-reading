@@ -1,5 +1,6 @@
 import SwiftUI
 import CoreImage
+import SwiftData
 
 /// Flow 8 / 8b · Everything the Stats screens show, worked out from the books on this phone.
 /// Pages read per day come from progress updates (`ReadingSession`); finished books count on their finish date.
@@ -43,6 +44,20 @@ struct ReadingStats {
             result[calendar.startOfDay(for: b.dateFinished!), default: 0] += 0
         }
         return result
+    }
+
+    /// What was read on one day: each book with its pages that day, and whether it was finished then.
+    struct DayRead: Identifiable { let book: Book; let pages: Int; let finished: Bool; var id: PersistentIdentifier { book.persistentModelID } }
+
+    func reading(on day: Date) -> [DayRead] {
+        var result: [PersistentIdentifier: DayRead] = [:]
+        for b in books {
+            let pages = b.sessions.filter { calendar.isDate($0.date, inSameDayAs: day) }.reduce(0) { $0 + max(0, $1.toPage - $1.fromPage) }
+            let done = b.status == .read && b.dateFinished.map { calendar.isDate($0, inSameDayAs: day) } == true
+            let touched = pages > 0 || done || b.sessions.contains { calendar.isDate($0.date, inSameDayAs: day) }
+            if touched { result[b.persistentModelID] = DayRead(book: b, pages: pages, finished: done) }
+        }
+        return result.values.sorted { $0.pages > $1.pages }
     }
 
     // MARK: Goal

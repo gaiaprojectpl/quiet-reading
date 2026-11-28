@@ -69,6 +69,7 @@ struct QuoteFlow: View {
             if source == .typed || draft != nil {
                 QuoteEditor(book: book, draft: draft ?? QuoteDraft(text: "", page: book.currentPage > 0 ? book.currentPage : nil, fromPhoto: false),
                             onDone: { dismiss() })
+                    .themedColorScheme()
             } else {
                 PageScanner(onUse: { text, page in draft = QuoteDraft(text: text, page: page, fromPhoto: true) },
                             onType: { draft = QuoteDraft(text: "", page: nil, fromPhoto: false) },

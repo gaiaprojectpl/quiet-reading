@@ -59,6 +59,8 @@ final class Book {
     var stars: Double?
     /// "How did it feel?" chips chosen at the Finished moment.
     var moods: [String] = []
+    /// Language of this edition, e.g. "English" (set when adding by hand or editing details).
+    var language: String?
     @Relationship(deleteRule: .cascade, inverse: \ReadingSession.book)
     var sessions: [ReadingSession] = []
     @Relationship(deleteRule: .cascade, inverse: \Quote.book)

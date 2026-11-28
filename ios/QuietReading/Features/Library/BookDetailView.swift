@@ -20,6 +20,7 @@ struct BookDetailView: View {
     @State private var finishAfterSheet: Book?
     @State private var showMove = false
     @State private var finishAfterMove = false
+    @State private var editing = false
     @State private var removeAfterSheet = false
     @State private var confirmRemove = false
     @State private var editingMoods = false
@@ -108,6 +109,7 @@ struct BookDetailView: View {
             MoveToShelfSheet(book: book, onRemove: { removeAfterSheet = true }, onFinish: { finishAfterMove = true })
         }
         .sheet(isPresented: $editingMoods) { MoodsSheet(book: book) }
+        .sheet(isPresented: $editing) { EditBookView(book: book).modifier(QsNotificationHost()) }
         .sheet(isPresented: $addingQuote, onDismiss: {
             if let s = pendingQuoteSource { pendingQuoteSource = nil; quoteSource = s }
         }) {
@@ -147,6 +149,8 @@ struct BookDetailView: View {
         .task {
             switch UserDefaults.standard.string(forKey: "qsLibrary") {
             case "move": showMove = true
+            case "edit": editing = true
+            case "moods": editingMoods = true
             case "margin": marginNotes = true
             case "quotes": tab = .quotes
             case "quoteselect", "quotetype": tab = .quotes; quoteSource = UserDefaults.standard.string(forKey: "qsLibrary") == "quotetype" ? .typed : .photo
@@ -174,6 +178,7 @@ struct BookDetailView: View {
             }
             .accessibilityLabel("Share")
             Menu {
+                Button("Edit details") { editing = true }
                 Button("Move to shelf") { showMove = true }
                 Button("Remove from library", role: .destructive) { confirmRemove = true }
             } label: {

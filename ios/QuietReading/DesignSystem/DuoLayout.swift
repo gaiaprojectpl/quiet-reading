@@ -126,3 +126,17 @@ struct DuoCoverSpacing: ViewModifier {
 extension View {
     func duoCover() -> some View { modifier(DuoCoverSpacing()) }
 }
+
+/// Screens opened from a camera (which forces dark) go back to the app theme's appearance,
+/// so system text, keyboards and the status bar aren't white on a light page.
+struct ThemedColorScheme: ViewModifier {
+    @Environment(\.theme) private var theme
+    func body(content: Content) -> some View {
+        let scheme: ColorScheme = theme == .night ? .dark : .light
+        content.environment(\.colorScheme, scheme).preferredColorScheme(scheme)
+    }
+}
+
+extension View {
+    func themedColorScheme() -> some View { modifier(ThemedColorScheme()) }
+}

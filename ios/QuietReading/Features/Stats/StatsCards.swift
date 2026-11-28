@@ -257,6 +257,14 @@ struct ReadingDaysCard: View {
     let stats: ReadingStats
     @Binding var month: Date
     @Environment(\.theme) private var theme
+    /// The day whose books are listed under the calendar (tap a day to change it).
+    @State private var selected: Date?
+
+    /// Today if read today, otherwise the latest reading day of the month shown.
+    private var shownDay: Date? {
+        if let selected, Calendar.current.isDate(selected, equalTo: month, toGranularity: .month) { return selected }
+        return days.last(where: \.didRead)?.date
+    }
 
     private var days: [ReadingStats.Day] { stats.days(inMonthOf: month) }
     private var months: [Date] {
@@ -298,22 +306,70 @@ struct ReadingDaysCard: View {
                 ForEach(days) { day in
                     let level = day.didRead ? ReadingStats.level(day.pages) : .rest
                     let today = cal.isDateInToday(day.date)
-                    Text("\(cal.component(.day, from: day.date))")
-                        .font(.caption2.weight(today ? .bold : .regular))
-                        .foregroundStyle(ink(level))
-                        .frame(maxWidth: .infinity, minHeight: Space.s24 + Space.s4)
-                        .background(fill(level), in: RoundedRectangle(cornerRadius: theme.radii.inner - 2, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: theme.radii.inner - 2, style: .continuous)
-                            .strokeBorder(today ? theme.palette.ink : .clear, lineWidth: Size.focusRing))
-                        .accessibilityLabel(day.date.formatted(date: .complete, time: .omitted))
-                        .accessibilityValue(day.didRead ? String(localized: "\(day.pages) pages") : String(localized: "Rest day"))
+                    let isShown = shownDay.map { cal.isDate($0, inSameDayAs: day.date) } ?? false
+                    Button { selected = day.date } label: {
+                        Text("\(cal.component(.day, from: day.date))")
+                            .font(.caption2.weight(today || isShown ? .bold : .regular))
+                            .foregroundStyle(ink(level))
+                            .frame(maxWidth: .infinity, minHeight: Space.s24 + Space.s4)
+                            .background(fill(level), in: RoundedRectangle(cornerRadius: theme.radii.inner - 2, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: theme.radii.inner - 2, style: .continuous)
+                                .strokeBorder(isShown ? theme.palette.accentInk : (today ? theme.palette.ink : .clear),
+                                              lineWidth: isShown ? Size.focusRing + 1 : Size.focusRing))
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(day.date.formatted(date: .complete, time: .omitted))
+                    .accessibilityValue(day.didRead ? String(localized: "\(day.pages) pages") : String(localized: "Rest day"))
+                    .accessibilityHint("Shows what you read that day")
+                    .accessibilityAddTraits(isShown ? [.isSelected] : [])
                 }
             }
             HStack(spacing: Space.s12) {
                 legend(.rest, "Rest"); legend(.little, "A little"); legend(.more, "More"); legend(.lots, "Lots")
             }
             .accessibilityHidden(true)
+            dayList
         }
+        .onChange(of: month) { selected = nil }
+    }
+
+    /// Under the calendar: what was read on the chosen day.
+    @ViewBuilder private var dayList: some View {
+        if let day = shownDay {
+            let reads = stats.reading(on: day)
+            VStack(alignment: .leading, spacing: Space.s8) {
+                theme.palette.line.frame(height: Size.stroke).padding(.vertical, Space.s4)
+                Text(day.formatted(.dateTime.weekday(.wide).day().month(.wide)))
+                    .font(.subheadline.weight(.semibold)).foregroundStyle(theme.palette.ink)
+                    .accessibilityAddTraits(.isHeader)
+                if reads.isEmpty {
+                    Text("A rest day. Rest days are part of reading too.")
+                        .font(.footnote).foregroundStyle(theme.palette.ink2)
+                } else {
+                    ForEach(reads) { r in
+                        HStack(spacing: Space.s12) {
+                            BookCover(source: .data(r.book.coverData), title: r.book.title, width: Space.s32)
+                            VStack(alignment: .leading, spacing: Space.s2) {
+                                Text(r.book.title).font(.subheadline.weight(.medium)).foregroundStyle(theme.palette.ink).lineLimit(2)
+                                Text(line(r)).font(.footnote).foregroundStyle(theme.palette.ink2)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .accessibilityElement(children: .combine)
+                    }
+                }
+            }
+            .gentleAnimation(day)
+        }
+    }
+
+    private func line(_ r: ReadingStats.DayRead) -> String {
+        var parts: [String] = []
+        if r.pages > 0 { parts.append(r.pages == 1 ? String(localized: "1 page") : String(localized: "\(r.pages) pages")) }
+        if r.finished { parts.append(String(localized: "Finished")) }
+        if parts.isEmpty { parts.append(String(localized: "Updated")) }
+        return parts.joined(separator: " · ")
     }
 
     private func legend(_ level: ReadingStats.Level, _ text: LocalizedStringKey) -> some View {

@@ -52,10 +52,10 @@ struct AddFlow: View {
             }
         }
         .sheet(item: $confirm) { c in
-            ConfirmEditionSheet(candidates: c.candidates, photo: c.photo, onAdded: { dismiss() })
+            ConfirmEditionSheet(candidates: c.candidates, photo: c.photo, onAdded: { dismiss() }).themedColorScheme()
         }
         .fullScreenCover(item: $noMatch) { n in
-            NoMatchView(photo: n.photo, title: n.title, author: n.author, onDone: { noMatch = nil; dismiss() }).duoCover()
+            NoMatchView(photo: n.photo, title: n.title, author: n.author, onDone: { noMatch = nil; dismiss() }).duoCover().themedColorScheme()
         }
         .alert("Allow camera access?", isPresented: $cameraDenied) {
             Button("Not now", role: .cancel) { mode = .type }
@@ -457,7 +457,8 @@ struct ConfirmEditionSheet: View {
     @Environment(NotificationCenterModel.self) private var notifications
     @Environment(Connectivity.self) private var connectivity
     @State private var selected: BookCandidate.ID?
-    @State private var usePhoto = true
+    /// The catalogue's cover is usually nicer than a photo; the photo is used when there's no cover.
+    @State private var usePhoto = false
 
     var body: some View {
         ScrollView {
@@ -471,7 +472,7 @@ struct ConfirmEditionSheet: View {
                         .buttonStyle(QsPressStyle())
                 }
                 if photo != nil {
-                    Toggle("Use my photo as the cover", isOn: $usePhoto)
+                    Toggle("Use my photo instead of the catalogue cover", isOn: $usePhoto)
                         .font(.callout)
                         .foregroundStyle(theme.palette.ink)
                         .tint(theme.palette.accent)
@@ -498,13 +499,20 @@ struct ConfirmEditionSheet: View {
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
         .presentationCornerRadius(theme.radii.sheet)
-        .onAppear { selected = candidates.first?.id }
+        .onAppear {
+            selected = candidates.first?.id
+            usePhoto = photo != nil && candidates.first?.coverURL == nil
+        }
+        .onChange(of: selected) { _, id in
+            if photo != nil { usePhoto = candidates.first { $0.id == id }?.coverURL == nil }
+        }
     }
 
     private func add(_ status: ReadingStatus) {
         guard let pick = candidates.first(where: { $0.id == selected }) ?? candidates.first else { return }
         BookAdder.add(title: pick.title, author: pick.author, isbn: pick.isbn, pageCount: pick.pageCount,
                       status: status, photo: usePhoto ? photo : nil, coverURL: pick.coverURL,
+                      language: pick.detail.map { $0.replacingOccurrences(of: " edition", with: "") },
                       context: context, notifications: notifications, isOnline: connectivity.isOnline)
         dismiss()
         onAdded()
@@ -527,6 +535,9 @@ struct NoMatchView: View {
     @State private var results: [BookCandidate] = []
     @State private var searching = false
     @State private var confirm = false
+    @State private var language = "English"
+    @State private var shelf: ReadingStatus = .toRead
+    @State private var pages = ""
 
     var body: some View {
         ScrollView {
@@ -547,8 +558,11 @@ struct NoMatchView: View {
                             .foregroundStyle(theme.palette.ink2)
                     }
                 }
-                field("Title", text: $title)
-                field("Author", text: $author)
+                QsTextField(label: "Title", text: $title)
+                QsTextField(label: "Author", text: $author, capitalization: .words)
+                QsMenuField(label: "Language", options: BookLanguage.options(), selection: $language)
+                QsMenuField(label: "Shelf", options: ReadingStatus.shelves.map { ($0, $0.shelfName) }, selection: $shelf)
+                QsTextField(label: "Pages (optional)", text: $pages, prompt: "For example 320", keyboard: .numberPad)
             }
             .padding(.horizontal, Space.s20)
             .padding(.top, Space.s24)
@@ -579,19 +593,6 @@ struct NoMatchView: View {
         }
     }
 
-    private func field(_ label: LocalizedStringKey, text: Binding<String>) -> some View {
-        VStack(alignment: .leading, spacing: Space.s8) {
-            Text(label).font(.footnote.weight(.medium)).foregroundStyle(theme.palette.ink2)
-            TextField(label, text: text)
-                .font(.body)
-                .padding(.horizontal, Space.s16)
-                .frame(minHeight: Size.field)
-                .background(theme.palette.surface, in: RoundedRectangle(cornerRadius: theme.radii.field, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: theme.radii.field, style: .continuous)
-                    .strokeBorder(theme.palette.lineStrong, lineWidth: Size.stroke))
-        }
-    }
-
     private func searchAgain() {
         Task {
             searching = true
@@ -608,7 +609,8 @@ struct NoMatchView: View {
 
     private func addAsIs() {
         BookAdder.add(title: title.trimmingCharacters(in: .whitespaces), author: author.trimmingCharacters(in: .whitespaces),
-                      isbn: nil, pageCount: nil, status: .toRead, photo: photo, coverURL: nil,
+                      isbn: nil, pageCount: Int(pages.filter(\.isNumber)).flatMap { $0 > 0 ? $0 : nil }, status: shelf,
+                      photo: photo, coverURL: nil, language: language,
                       context: context, notifications: notifications, isOnline: connectivity.isOnline)
         onDone()
     }
@@ -619,9 +621,11 @@ struct NoMatchView: View {
 enum BookAdder {
     /// Saves the book straight away (works offline); the cover fills in later when it's online.
     static func add(title: String, author: String, isbn: String?, pageCount: Int?, status: ReadingStatus,
-                    photo: UIImage?, coverURL: URL?, context: ModelContext, notifications: NotificationCenterModel,
+                    photo: UIImage?, coverURL: URL?, language: String? = nil, context: ModelContext, notifications: NotificationCenterModel,
                     isOnline: Bool = true) {
         let book = Book(title: title, author: author, isbn: isbn, pageCount: pageCount, status: status, source: .manual)
+        book.language = language
+        if status == .read { book.dateFinished = .now; book.currentPage = pageCount ?? 0 }
         let existing = (try? context.fetch(FetchDescriptor<Book>())) ?? []
         if existing.contains(where: { $0.matchKey == book.matchKey }) {
             notifications.show(String(localized: "Already on your shelf"),
